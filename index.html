@@ -6,265 +6,805 @@
 <title>Revisão de Transcrições — Cartório</title>
 <style>
   :root {
-    --bg: #f7f6f1;
+    --header-bg: #1e293b;
+    --header-text: #ffffff;
+    --header-subtle: #94a3b8;
+
+    --bg: #f1f5f9;
     --surface: #ffffff;
-    --border: #d9d6cc;
-    --text: #2a2620;
-    --muted: #6f6a60;
-    --accent: #2a5a8a;
-    --accent-bg: #e6efff;
-    --ok: #2a7a4a;
-    --ok-bg: #dff5e7;
-    --doubt: #b58900;
-    --doubt-bg: #fff3cd;
-    --danger: #b32e2e;
-    --danger-bg: #fbe1e1;
+    --border: #e2e8f0;
+    --border-strong: #cbd5e1;
+
+    --text: #0f172a;
+    --text-muted: #64748b;
+    --text-subtle: #94a3b8;
+
+    --primary: #1e293b;
+    --primary-hover: #0f172a;
+    --primary-text: #ffffff;
+
+    --info-bg: #dbeafe;
+    --info-text: #1e40af;
+
+    --ok-bg: #dcfce7;
+    --ok-text: #166534;
+    --ok-border: #86efac;
+
+    --warn-bg: #fef3c7;
+    --warn-text: #92400e;
+    --warn-border: #fcd34d;
+
+    --danger-bg: #fee2e2;
+    --danger-text: #991b1b;
+    --danger-border: #fca5a5;
+
+    --neutral-bg: #f1f5f9;
+    --neutral-text: #475569;
   }
+
   * { box-sizing: border-box; }
   html, body {
-    margin: 0; height: 100%; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-    background: var(--bg); color: var(--text); font-size: 14px;
-  }
-  header.top {
-    background: var(--surface); border-bottom: 1px solid var(--border);
-    padding: 0.7em 1.2em; display: flex; align-items: center; gap: 1em;
-  }
-  header.top h1 { font-size: 1.05em; margin: 0; font-weight: 600; }
-  header.top .spacer { flex: 1; }
-  header.top input, header.top select {
-    font: inherit; padding: 0.35em 0.6em; border: 1px solid var(--border); border-radius: 4px;
+    margin: 0; padding: 0;
+    font-family: -apple-system, BlinkMacSystemFont, "Inter", "Segoe UI", Roboto, system-ui, sans-serif;
     background: var(--bg);
+    color: var(--text);
+    font-size: 14px;
+    line-height: 1.5;
   }
-  header.top .key-status { font-size: 0.85em; color: var(--muted); }
-  header.top .key-status.ok { color: var(--ok); }
-  .layout {
-    display: grid; grid-template-columns: 280px 1fr 320px;
-    height: calc(100vh - 50px);
+
+  /* ===== Header ===== */
+  .topbar {
+    background: var(--header-bg);
+    color: var(--header-text);
+    padding: 1.1em 0;
   }
-  .panel {
-    background: var(--surface); overflow-y: auto; border-right: 1px solid var(--border);
-    padding: 0.8em 1em;
+  .topbar-inner {
+    max-width: 1100px;
+    margin: 0 auto;
+    padding: 0 1.5em;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 2em;
   }
-  .panel:last-child { border-right: none; border-left: 1px solid var(--border); }
-  .panel h2 {
-    font-size: 0.85em; text-transform: uppercase; letter-spacing: 0.05em;
-    color: var(--muted); margin: 0 0 0.6em 0; font-weight: 600;
+  .brand h1 {
+    margin: 0;
+    font-size: 1.5em;
+    font-weight: 700;
+    letter-spacing: -0.01em;
   }
+  .brand .subtitle {
+    margin: 0.15em 0 0;
+    font-size: 0.88em;
+    color: var(--header-subtle);
+  }
+  .topbar-user {
+    display: flex;
+    align-items: center;
+    gap: 0.7em;
+  }
+  .key-pill, .reviewer-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4em;
+    padding: 0.35em 0.8em;
+    border-radius: 999px;
+    font-size: 0.82em;
+    font-weight: 500;
+    background: rgba(255,255,255,0.08);
+    color: var(--header-subtle);
+  }
+  .key-pill.ok {
+    background: rgba(34,197,94,0.2);
+    color: #86efac;
+  }
+  .reviewer-pill {
+    background: rgba(255,255,255,0.12);
+    color: #fff;
+  }
+  .reviewer-pill .avatar {
+    width: 22px; height: 22px;
+    border-radius: 50%;
+    background: #ec4899;
+    color: white;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: 700;
+    font-size: 0.75em;
+  }
+
+  /* ===== Layout principal ===== */
+  .container {
+    max-width: 1100px;
+    margin: 1.8em auto 4em;
+    padding: 0 1.5em;
+    display: flex;
+    flex-direction: column;
+    gap: 1.2em;
+  }
+
+  /* ===== Cards ===== */
+  .card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    box-shadow: 0 1px 3px rgba(15,23,42,0.04);
+    overflow: hidden;
+  }
+  .card-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 1em 1.5em;
+    border-bottom: 1px solid var(--border);
+    gap: 1em;
+  }
+  .card-header h2 {
+    margin: 0;
+    font-size: 1.1em;
+    font-weight: 700;
+    color: var(--text);
+  }
+  .card-actions {
+    display: flex;
+    gap: 0.5em;
+    flex-wrap: wrap;
+  }
+  .card-body {
+    padding: 1.4em 1.5em;
+  }
+  .card.collapsed .card-body { display: none; }
+  .card-toggle {
+    background: none;
+    border: 1px solid var(--border);
+    color: var(--text-muted);
+    font-size: 0.78em;
+    padding: 0.3em 0.7em;
+    border-radius: 6px;
+    cursor: pointer;
+    font-family: inherit;
+  }
+  .card-toggle:hover { background: var(--bg); color: var(--text); }
+
+  /* ===== Formulários ===== */
+  .form-grid {
+    display: flex;
+    flex-direction: column;
+    gap: 1.2em;
+  }
+  .form-row {
+    display: flex;
+    flex-direction: column;
+    gap: 0.4em;
+  }
+  .form-row label {
+    font-size: 0.85em;
+    font-weight: 600;
+    color: var(--text);
+  }
+  .form-row .hint {
+    font-size: 0.78em;
+    color: var(--text-muted);
+    margin: 0;
+  }
+  .form-row-checkboxes {
+    flex-direction: row;
+    flex-wrap: wrap;
+    gap: 1.4em;
+  }
+  .checkbox {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5em;
+    cursor: pointer;
+    font-size: 0.88em;
+    font-weight: normal;
+    color: var(--text);
+  }
+  input[type=text], input[type=password], select, textarea {
+    font: inherit;
+    padding: 0.55em 0.75em;
+    border: 1px solid var(--border-strong);
+    border-radius: 6px;
+    background: var(--surface);
+    color: var(--text);
+    width: 100%;
+  }
+  input:focus, select:focus, textarea:focus {
+    outline: 2px solid #6366f1;
+    outline-offset: -1px;
+    border-color: #6366f1;
+  }
+  textarea { font-family: 'SF Mono', Menlo, Consolas, monospace; font-size: 0.78em; resize: vertical; }
+  .input-with-action {
+    display: flex;
+    gap: 0.5em;
+  }
+  .input-with-action input { flex: 1; }
+
+  /* ===== Botões ===== */
+  .btn {
+    font: inherit;
+    font-weight: 600;
+    padding: 0.6em 1.1em;
+    border-radius: 6px;
+    border: 1px solid transparent;
+    cursor: pointer;
+    transition: 0.12s background, 0.12s border, 0.12s color;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4em;
+    white-space: nowrap;
+  }
+  .btn-small { font-size: 0.85em; padding: 0.45em 0.85em; }
+  .btn-primary {
+    background: var(--primary);
+    color: var(--primary-text);
+    border-color: var(--primary);
+  }
+  .btn-primary:hover:not(:disabled) { background: var(--primary-hover); border-color: var(--primary-hover); }
+  .btn-primary:disabled { background: #94a3b8; border-color: #94a3b8; cursor: not-allowed; }
+  .btn-secondary {
+    background: var(--surface);
+    color: var(--text);
+    border-color: var(--border-strong);
+  }
+  .btn-secondary:hover { background: var(--bg); }
+  .btn-success {
+    background: #16a34a;
+    color: white;
+    border-color: #16a34a;
+  }
+  .btn-success:hover:not(:disabled) { background: #15803d; border-color: #15803d; }
+  .btn-success:disabled { background: #94a3b8; border-color: #94a3b8; cursor: not-allowed; }
+  .btn-danger-outline {
+    background: transparent;
+    color: var(--danger-text);
+    border-color: var(--danger-border);
+  }
+  .btn-danger-outline:hover { background: var(--danger-bg); }
+
+  /* ===== Drop zone ===== */
   .drop-zone {
-    border: 2px dashed var(--border); border-radius: 6px; padding: 1.2em 1em;
-    text-align: center; color: var(--muted); cursor: pointer; transition: 0.15s;
-    margin-bottom: 1em; font-size: 0.9em;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 0.4em;
+    padding: 2.2em 1.5em;
+    border: 2px dashed var(--border-strong);
+    border-radius: 10px;
+    background: var(--bg);
+    cursor: pointer;
+    transition: 0.15s all;
+    text-align: center;
   }
   .drop-zone:hover, .drop-zone.dragover {
-    border-color: var(--accent); color: var(--accent); background: var(--accent-bg);
+    border-color: var(--primary);
+    background: var(--info-bg);
   }
   .drop-zone input { display: none; }
-  ul.docs { list-style: none; padding: 0; margin: 0; }
-  ul.docs li {
-    padding: 0.6em 0.7em; border: 1px solid var(--border); border-radius: 4px;
-    margin-bottom: 0.4em; cursor: pointer; font-size: 0.9em; background: var(--bg);
-    display: flex; flex-direction: column; gap: 0.2em;
-  }
-  ul.docs li.active { background: var(--accent-bg); border-color: var(--accent); }
-  ul.docs li .name { font-weight: 600; }
-  ul.docs li .meta { font-size: 0.78em; color: var(--muted); }
-  .status-badge {
-    display: inline-block; padding: 0.05em 0.5em; border-radius: 10px;
-    font-size: 0.7em; font-weight: 600; text-transform: uppercase;
-  }
-  .status-queued { background: #eee; color: #666; }
-  .status-processing { background: var(--accent-bg); color: var(--accent); }
-  .status-needs-review { background: var(--doubt-bg); color: var(--doubt); }
-  .status-approved { background: var(--ok-bg); color: var(--ok); }
-  .status-error { background: var(--danger-bg); color: var(--danger); }
+  .drop-zone-icon { font-size: 2em; opacity: 0.5; }
+  .drop-zone strong { color: var(--text); font-size: 1em; }
+  .drop-zone-hint { color: var(--text-muted); font-size: 0.85em; }
 
-  .work {
-    background: var(--bg); overflow-y: auto; padding: 1.5em 2em;
+  /* ===== Stats ===== */
+  .stats-row {
+    display: grid;
+    grid-template-columns: repeat(5, 1fr);
+    gap: 0.75em;
+    margin-top: 1.2em;
   }
-  .work .empty {
-    display: flex; height: 100%; align-items: center; justify-content: center;
-    color: var(--muted); font-size: 1em;
+  .stat {
+    background: var(--neutral-bg);
+    padding: 0.7em 0.9em;
+    border-radius: 8px;
+    border: 1px solid var(--border);
+    display: flex;
+    flex-direction: column;
+    gap: 0.15em;
   }
-  .work .doc-card {
-    background: var(--surface); border: 1px solid var(--border); border-radius: 8px;
-    padding: 1.4em 1.8em; max-width: 820px; margin: 0 auto;
+  .stat-label { font-size: 0.72em; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.04em; font-weight: 600; }
+  .stat strong { font-size: 1.4em; color: var(--text); font-weight: 700; }
+  .stat-queued { background: #f1f5f9; }
+  .stat-processing { background: var(--info-bg); }
+  .stat-processing strong { color: var(--info-text); }
+  .stat-needs { background: var(--warn-bg); }
+  .stat-needs strong { color: var(--warn-text); }
+  .stat-approved { background: var(--ok-bg); }
+  .stat-approved strong { color: var(--ok-text); }
+  .stat-cost { background: #f1f5f9; }
+  .stat-cost strong { font-size: 1.05em; font-family: 'SF Mono', Menlo, monospace; }
+
+  @media (max-width: 720px) {
+    .stats-row { grid-template-columns: repeat(2, 1fr); }
   }
-  .doc-card h2 {
-    margin-top: 0; padding-bottom: 0.3em; border-bottom: 2px solid var(--text);
+
+  /* ===== Documentos: lista + área de trabalho ===== */
+  .docs-split {
+    display: grid;
+    grid-template-columns: 280px 1fr;
+    gap: 0;
+    padding: 0;
+    min-height: 480px;
+  }
+  @media (max-width: 880px) {
+    .docs-split { grid-template-columns: 1fr; }
+  }
+
+  .docs-list {
+    list-style: none;
+    margin: 0;
+    padding: 0.6em;
+    border-right: 1px solid var(--border);
+    background: #fafbfc;
+    max-height: 760px;
+    overflow-y: auto;
+  }
+  @media (max-width: 880px) {
+    .docs-list { border-right: none; border-bottom: 1px solid var(--border); max-height: 280px; }
+  }
+  .docs-list .docs-empty {
+    text-align: center;
+    color: var(--text-muted);
+    font-size: 0.88em;
+    padding: 2em 1em;
+  }
+  .doc-item {
+    padding: 0.7em 0.85em;
+    margin-bottom: 0.4em;
+    border-radius: 7px;
+    border: 1px solid transparent;
+    background: var(--surface);
+    cursor: pointer;
+    transition: 0.12s all;
+    display: flex;
+    flex-direction: column;
+    gap: 0.35em;
+  }
+  .doc-item:hover { background: var(--bg); border-color: var(--border); }
+  .doc-item.active {
+    background: var(--info-bg);
+    border-color: #93c5fd;
+  }
+  .doc-item .doc-name {
+    font-weight: 600;
+    font-size: 0.9em;
+    color: var(--text);
+    word-break: break-all;
+  }
+  .doc-item .doc-meta {
+    display: flex;
+    align-items: center;
+    gap: 0.5em;
+    font-size: 0.78em;
+    color: var(--text-muted);
+    flex-wrap: wrap;
+  }
+  .badge {
+    display: inline-flex;
+    align-items: center;
+    padding: 0.18em 0.6em;
+    border-radius: 999px;
+    font-size: 0.72em;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+  }
+  .badge-queued { background: var(--neutral-bg); color: var(--neutral-text); }
+  .badge-processing { background: var(--info-bg); color: var(--info-text); }
+  .badge-needs-review { background: var(--warn-bg); color: var(--warn-text); }
+  .badge-approved { background: var(--ok-bg); color: var(--ok-text); }
+  .badge-error { background: var(--danger-bg); color: var(--danger-text); }
+
+  /* ===== Work area (documento aberto) ===== */
+  .work-area { padding: 1.5em 1.8em; background: var(--surface); }
+  .work-empty {
+    display: flex;
+    height: 100%;
+    align-items: center;
+    justify-content: center;
+    color: var(--text-muted);
+    font-size: 0.95em;
+    text-align: center;
+  }
+  .doc-detail h3 {
+    margin: 0 0 0.3em;
     font-size: 1.3em;
+    font-weight: 700;
+    color: var(--text);
   }
-  .doc-meta { display: flex; flex-wrap: wrap; gap: 1.2em; font-size: 0.85em; margin: 0.8em 0; color: var(--muted); }
-  .doc-meta strong { color: var(--text); }
-  .transcricao {
-    text-align: justify; line-height: 1.6; margin: 1em 0;
-    background: #fafafa; padding: 1em 1.2em; border-radius: 4px;
+  .doc-detail .doc-stem {
+    font-size: 0.78em;
+    color: var(--text-muted);
+    font-family: 'SF Mono', Menlo, monospace;
+    margin-bottom: 1em;
+  }
+  .doc-fields {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 0.5em 1em;
+    background: var(--bg);
+    border-radius: 8px;
+    padding: 0.9em 1.1em;
+    margin: 1em 0;
+    font-size: 0.88em;
+  }
+  .doc-fields > div { display: flex; flex-direction: column; }
+  .doc-fields .field-label { font-size: 0.72em; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.03em; font-weight: 600; }
+  .doc-fields .field-value { color: var(--text); font-weight: 500; }
+  .doc-meta-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.7em;
+    margin: 0.8em 0;
+    font-size: 0.83em;
+    color: var(--text-muted);
+  }
+  .doc-meta-row .pill {
+    background: var(--neutral-bg);
+    padding: 0.25em 0.7em;
+    border-radius: 999px;
     border: 1px solid var(--border);
   }
-  .incerto {
-    background: var(--doubt-bg); padding: 1px 4px; border-bottom: 2px solid var(--doubt);
-    cursor: pointer; border-radius: 2px;
-  }
-  .incerto.resolved { background: var(--ok-bg); border-bottom-color: var(--ok); }
-  .incerto.active { outline: 2px solid var(--accent); }
-
-  .panel-right .doubt-card {
-    background: var(--bg); border: 1px solid var(--border); border-radius: 5px;
-    padding: 0.7em 0.8em; margin-bottom: 0.7em;
-  }
-  .panel-right .doubt-card.resolved { opacity: 0.55; }
-  .panel-right .doubt-card.active { border-color: var(--accent); box-shadow: 0 0 0 2px var(--accent-bg); }
-  .panel-right .doubt-card .label { font-size: 0.78em; color: var(--muted); margin-bottom: 0.3em; }
-  .panel-right .doubt-card .options { display: flex; flex-direction: column; gap: 0.3em; margin-top: 0.4em; }
-  .panel-right .doubt-card .options button {
-    text-align: left; padding: 0.4em 0.6em; font: inherit; font-size: 0.85em;
-    background: var(--surface); border: 1px solid var(--border); border-radius: 4px;
-    cursor: pointer;
-  }
-  .panel-right .doubt-card .options button:hover { background: var(--accent-bg); border-color: var(--accent); }
-  .panel-right .doubt-card .options button.selected { background: var(--ok-bg); border-color: var(--ok); }
-  .panel-right .doubt-card .custom {
-    margin-top: 0.4em; display: flex; gap: 0.3em;
-  }
-  .panel-right .doubt-card .custom input {
-    flex: 1; padding: 0.3em 0.5em; border: 1px solid var(--border); border-radius: 3px; font: inherit;
-  }
-  .panel-right .doubt-card .custom button { padding: 0.3em 0.6em; }
-  .panel-right .doubt-card .reason {
-    font-size: 0.78em; color: var(--muted); margin-top: 0.3em; font-style: italic;
-  }
-
-  button.primary {
-    background: var(--accent); color: white; border: none; padding: 0.55em 1em;
-    border-radius: 4px; font: inherit; font-weight: 600; cursor: pointer;
-  }
-  button.primary:disabled { background: #aaa; cursor: not-allowed; }
-  button.primary:hover:not(:disabled) { background: #1e4870; }
-  button.secondary {
-    background: var(--bg); border: 1px solid var(--border); padding: 0.55em 1em;
-    border-radius: 4px; font: inherit; cursor: pointer;
-  }
-  .approve-row {
-    margin: 1em 0; padding-top: 1em; border-top: 1px solid var(--border);
-    display: flex; gap: 0.6em; align-items: center;
-  }
-  .approve-row .stats { flex: 1; font-size: 0.85em; color: var(--muted); }
-
-  .right-section { margin-bottom: 1.4em; }
-
-  .stats-summary {
-    display: flex; gap: 0.6em; font-size: 0.78em; margin-bottom: 0.6em;
-  }
-  .stats-summary span { padding: 0.2em 0.5em; border-radius: 3px; }
-
-  .glossario-panel { font-size: 0.85em; }
-  .glossario-panel pre {
-    background: var(--bg); padding: 0.5em; border-radius: 3px; white-space: pre-wrap;
-    max-height: 200px; overflow-y: auto; font-size: 0.8em;
-  }
-
-  /* Image preview */
+  .doc-meta-row .pill strong { color: var(--text); font-weight: 600; }
   .img-preview {
-    max-width: 100%; max-height: 320px; border: 1px solid var(--border);
-    border-radius: 4px; margin: 0.6em 0;
+    width: 100%;
+    max-height: 360px;
+    object-fit: contain;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    background: var(--bg);
+    margin: 0.8em 0;
+  }
+  .transcricao-box {
+    background: #fefce8;
+    border: 1px solid #fde68a;
+    border-left: 4px solid #ca8a04;
+    border-radius: 6px;
+    padding: 1.1em 1.3em;
+    margin: 1em 0;
+    line-height: 1.7;
+    font-family: Georgia, 'Times New Roman', serif;
+    font-size: 0.95em;
+  }
+  .transcricao-box .transcricao { margin: 0; }
+  .incerto {
+    background: #fef3c7;
+    padding: 1px 4px;
+    border-bottom: 2px solid #ca8a04;
+    cursor: pointer;
+    border-radius: 2px;
+  }
+  .incerto.resolved {
+    background: var(--ok-bg);
+    border-bottom-color: #16a34a;
+  }
+  .incerto.active { outline: 2px solid #2563eb; outline-offset: 1px; }
+  .ilegivel {
+    background: var(--danger-bg);
+    color: var(--danger-text);
+    padding: 1px 4px;
+    font-style: italic;
+    border-radius: 2px;
+  }
+  .confrontantes-box, .selos-box {
+    background: var(--bg);
+    border-radius: 6px;
+    padding: 0.8em 1.1em;
+    margin: 0.7em 0;
+    font-size: 0.88em;
+  }
+  .confrontantes-box strong, .selos-box strong { color: var(--text); display: block; margin-bottom: 0.35em; }
+  .confrontantes-box ul { margin: 0; padding-left: 1.4em; }
+
+  .approve-row {
+    display: flex;
+    gap: 0.6em;
+    align-items: center;
+    margin-top: 1.4em;
+    padding-top: 1.2em;
+    border-top: 1px solid var(--border);
+  }
+  .approve-row .resolved-stats {
+    flex: 1;
+    font-size: 0.88em;
+    color: var(--text-muted);
+  }
+  .approve-row .resolved-stats.complete { color: var(--ok-text); font-weight: 600; }
+
+  /* ===== Dúvidas ===== */
+  .doubts-section {
+    margin-top: 1.5em;
+    padding-top: 1.2em;
+    border-top: 1px solid var(--border);
+  }
+  .doubts-section h4 {
+    margin: 0 0 0.8em;
+    font-size: 1em;
+    font-weight: 700;
+    color: var(--text);
+    display: flex;
+    align-items: center;
+    gap: 0.5em;
+  }
+  .doubts-section h4 .badge {
+    background: var(--warn-bg);
+    color: var(--warn-text);
+  }
+  .doubts-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+    gap: 0.7em;
+  }
+  .doubt-card {
+    background: var(--surface);
+    border: 1px solid var(--border-strong);
+    border-radius: 8px;
+    padding: 0.9em 1em;
+    display: flex;
+    flex-direction: column;
+    gap: 0.5em;
+  }
+  .doubt-card.resolved { opacity: 0.65; background: #fafffe; border-color: var(--ok-border); }
+  .doubt-card.active { border-color: #2563eb; box-shadow: 0 0 0 3px var(--info-bg); }
+  .doubt-card .doubt-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-size: 0.75em;
+    color: var(--text-muted);
+  }
+  .doubt-card .doubt-id {
+    font-family: 'SF Mono', Menlo, monospace;
+    background: var(--bg);
+    padding: 0.15em 0.5em;
+    border-radius: 4px;
+  }
+  .doubt-card .doubt-confidence-baixa { color: var(--danger-text); font-weight: 600; }
+  .doubt-card .doubt-confidence-media { color: var(--warn-text); font-weight: 600; }
+  .doubt-card .doubt-confidence-alta { color: var(--ok-text); font-weight: 600; }
+  .doubt-card .doubt-trecho {
+    font-family: Georgia, serif;
+    font-size: 0.95em;
+    font-weight: 600;
+    color: var(--text);
+    background: #fef3c7;
+    padding: 0.3em 0.6em;
+    border-radius: 4px;
+    border-left: 3px solid #ca8a04;
+  }
+  .doubt-card .doubt-options {
+    display: flex;
+    flex-direction: column;
+    gap: 0.3em;
+  }
+  .doubt-card .doubt-options button {
+    text-align: left;
+    padding: 0.5em 0.7em;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 5px;
+    cursor: pointer;
+    font: inherit;
+    font-size: 0.88em;
+  }
+  .doubt-card .doubt-options button:hover { background: var(--bg); border-color: var(--border-strong); }
+  .doubt-card .doubt-options button.selected {
+    background: var(--ok-bg);
+    border-color: var(--ok-border);
+    color: var(--ok-text);
+    font-weight: 600;
+  }
+  .doubt-card .doubt-options small { color: var(--text-muted); font-weight: normal; }
+  .doubt-card .doubt-custom { display: flex; gap: 0.3em; }
+  .doubt-card .doubt-custom input { flex: 1; font-size: 0.85em; padding: 0.4em 0.6em; }
+  .doubt-card .doubt-custom button { padding: 0.4em 0.8em; font-size: 0.85em; }
+  .doubt-card .doubt-reason {
+    font-size: 0.78em;
+    color: var(--text-muted);
+    font-style: italic;
+    margin: 0;
+  }
+  .no-doubts {
+    background: var(--ok-bg);
+    color: var(--ok-text);
+    padding: 1em 1.2em;
+    border-radius: 8px;
+    border: 1px solid var(--ok-border);
+    font-weight: 500;
+    text-align: center;
   }
 
-  /* Spinner */
+  /* ===== Estado processing/error ===== */
+  .doc-processing, .doc-error, .doc-queued {
+    text-align: center;
+    padding: 2em 1em;
+  }
+  .doc-processing { color: var(--info-text); }
+  .doc-error { color: var(--danger-text); }
   .spinner {
-    display: inline-block; width: 12px; height: 12px;
-    border: 2px solid var(--border); border-top-color: var(--accent);
-    border-radius: 50%; animation: spin 0.8s linear infinite;
+    display: inline-block;
+    width: 14px; height: 14px;
+    border: 2px solid var(--border);
+    border-top-color: var(--info-text);
+    border-radius: 50%;
+    animation: spin 0.8s linear infinite;
+    margin-right: 0.4em;
+    vertical-align: -2px;
   }
   @keyframes spin { to { transform: rotate(360deg); } }
 
+  /* ===== Toast ===== */
   .toast {
-    position: fixed; bottom: 1.5em; right: 1.5em;
-    background: var(--text); color: white; padding: 0.7em 1.1em;
-    border-radius: 5px; font-size: 0.9em; max-width: 360px;
-    opacity: 0; pointer-events: none; transition: 0.2s;
+    position: fixed;
+    bottom: 1.5em;
+    right: 1.5em;
+    background: var(--primary);
+    color: white;
+    padding: 0.85em 1.3em;
+    border-radius: 8px;
+    font-size: 0.9em;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+    max-width: 380px;
+    opacity: 0;
+    pointer-events: none;
+    transition: 0.2s opacity, 0.2s transform;
+    transform: translateY(8px);
+    z-index: 100;
   }
-  .toast.show { opacity: 0.95; pointer-events: auto; }
-  .toast.error { background: var(--danger); }
-  .toast.success { background: var(--ok); }
+  .toast.show { opacity: 0.98; pointer-events: auto; transform: translateY(0); }
+  .toast.error { background: #b91c1c; }
+  .toast.success { background: #15803d; }
+
+  details.glossario-details summary {
+    cursor: pointer;
+    font-size: 0.88em;
+    font-weight: 600;
+    color: var(--text);
+    padding: 0.4em 0;
+    user-select: none;
+  }
+  details.glossario-details[open] summary { margin-bottom: 0.6em; }
+  details.glossario-details textarea { margin-bottom: 0.6em; }
 </style>
 </head>
 <body>
 
-<header class="top">
-  <h1>Revisão de Transcrições</h1>
-  <input type="password" id="api-key" placeholder="ANTHROPIC_API_KEY" size="32">
-  <button class="secondary" id="save-key">Salvar chave</button>
-  <span class="key-status" id="key-status">sem chave</span>
-  <input type="text" id="reviewer-name" placeholder="seu nome (revisor)" size="20"
-         style="font:inherit;padding:0.35em 0.6em;border:1px solid var(--border);border-radius:4px;background:var(--bg);">
-  <div class="spacer"></div>
-  <select id="model" title="Estratégia de modelo">
-    <option value="auto">auto (Haiku → Sonnet se difícil) ★</option>
-    <option value="claude-haiku-4-5-20251001">Haiku 4.5 (mais barato)</option>
-    <option value="claude-sonnet-4-6">Sonnet 4.6</option>
-    <option value="claude-opus-4-7">Opus 4.7 (caro/preciso)</option>
-  </select>
-  <label style="font-size:0.85em;color:var(--muted)" title="2 leituras independentes — custa ~2x">
-    <input type="checkbox" id="double-pass"> double-pass
-  </label>
-  <label style="font-size:0.85em;color:var(--muted)">
-    <input type="checkbox" id="auto-process" checked> auto-processar fila
-  </label>
-  <button class="secondary" id="export-zip">Baixar aprovados (ZIP)</button>
-  <button class="secondary" id="clear-all" title="Limpa fila e armazenamento local">Limpar</button>
+<header class="topbar">
+  <div class="topbar-inner">
+    <div class="brand">
+      <h1>Revisão de Transcrições</h1>
+      <p class="subtitle">Cartório · Registros manuscritos 1890–1976</p>
+    </div>
+    <div class="topbar-user">
+      <span class="key-pill" id="key-status">sem chave</span>
+      <span class="reviewer-pill" id="reviewer-pill" style="display:none">
+        <span class="avatar" id="reviewer-avatar">?</span>
+        <span id="reviewer-display">—</span>
+      </span>
+    </div>
+  </div>
 </header>
 
-<div class="layout">
+<main class="container">
 
-  <!-- Coluna esquerda: fila + lista -->
-  <aside class="panel">
-    <h2>Entrada</h2>
-    <label class="drop-zone" id="drop-zone">
-      <input type="file" id="file-input" accept="image/*,application/pdf" multiple>
-      <strong>Arraste imagens / PDFs aqui</strong><br>
-      <span style="font-size:0.82em">ou clique para escolher</span>
-    </label>
+  <!-- Card: Configuração -->
+  <section class="card" id="config-card">
+    <header class="card-header">
+      <h2>Configuração</h2>
+      <button class="card-toggle" id="toggle-config" type="button">esconder</button>
+    </header>
+    <div class="card-body">
+      <div class="form-grid">
 
-    <div class="stats-summary">
-      <span style="background:#eee">fila: <strong id="cnt-queued">0</strong></span>
-      <span style="background:var(--accent-bg);color:var(--accent)">proc: <strong id="cnt-processing">0</strong></span>
-      <span style="background:var(--doubt-bg);color:var(--doubt)">dúvida: <strong id="cnt-needs">0</strong></span>
-      <span style="background:var(--ok-bg);color:var(--ok)">ok: <strong id="cnt-approved">0</strong></span>
-    </div>
-    <div style="font-size:0.78em;color:var(--muted);margin-bottom:0.8em;padding:0.4em 0.5em;background:var(--bg);border-radius:3px;">
-      Custo acumulado: <strong id="cost-total">US$ 0,0000</strong>
-    </div>
+        <div class="form-row">
+          <label for="api-key">Sua chave da Anthropic</label>
+          <div class="input-with-action">
+            <input type="password" id="api-key" placeholder="sk-ant-…" autocomplete="off">
+            <button class="btn btn-primary" id="save-key" type="button">Salvar chave</button>
+          </div>
+          <p class="hint">Fica apenas no <code>localStorage</code> do seu navegador. Nunca sobe pro servidor. Pegue em <a href="https://console.anthropic.com/settings/keys" target="_blank">console.anthropic.com</a>.</p>
+        </div>
 
-    <h2>Documentos</h2>
-    <ul class="docs" id="docs-list"></ul>
-  </aside>
+        <div class="form-row">
+          <label for="reviewer-name">Seu nome (revisor)</label>
+          <input type="text" id="reviewer-name" placeholder="ex: Henrique Simões">
+          <p class="hint">Vai no log de auditoria de cada aprovação.</p>
+        </div>
 
-  <!-- Coluna central: documento selecionado -->
-  <main class="work" id="work">
-    <div class="empty">Selecione um documento à esquerda ou jogue arquivos para começar.</div>
-  </main>
+        <div class="form-row">
+          <label for="model">Modelo / estratégia</label>
+          <select id="model">
+            <option value="auto">★ auto — Haiku primeiro, escala pra Sonnet se difícil (recomendado)</option>
+            <option value="claude-haiku-4-5-20251001">Haiku 4.5 — mais barato (~US$ 0,015/img)</option>
+            <option value="claude-sonnet-4-6">Sonnet 4.6 — equilibrado (~US$ 0,045/img)</option>
+            <option value="claude-opus-4-7">Opus 4.7 — mais preciso (~US$ 0,22/img)</option>
+          </select>
+        </div>
 
-  <!-- Coluna direita: dúvidas + glossário -->
-  <aside class="panel panel-right">
-    <div class="right-section">
-      <h2>Dúvidas a resolver</h2>
-      <div id="doubts-container">
-        <p style="color:var(--muted);font-size:0.85em;">Nenhum documento selecionado.</p>
+        <div class="form-row form-row-checkboxes">
+          <label class="checkbox">
+            <input type="checkbox" id="double-pass">
+            <span>Double-pass (2 leituras independentes — custa ~2x)</span>
+          </label>
+          <label class="checkbox">
+            <input type="checkbox" id="auto-process" checked>
+            <span>Auto-processar fila</span>
+          </label>
+        </div>
+
+        <details class="glossario-details">
+          <summary>Glossário (contexto enviado pra API)</summary>
+          <p class="hint">Termos, topônimos e pessoas conhecidas. O texto inteiro é enviado em cada chamada (com cache de 5 min).</p>
+          <textarea id="glossario-text" rows="10"></textarea>
+          <button class="btn btn-secondary btn-small" id="save-glossario" type="button">Salvar glossário</button>
+        </details>
+
       </div>
     </div>
+  </section>
 
-    <div class="right-section">
-      <h2>Glossário</h2>
-      <div class="glossario-panel">
-        <p style="color:var(--muted);font-size:0.82em;margin-top:0;">
-          Termos, topônimos e pessoas conhecidas. Enviado como contexto a cada chamada da API.
-          Adicione manualmente entradas confirmadas para melhorar precisão.
-        </p>
-        <textarea id="glossario-text" rows="8" style="width:100%;font:inherit;font-size:0.78em;padding:0.4em;border:1px solid var(--border);border-radius:3px;"></textarea>
-        <button class="secondary" id="save-glossario" style="margin-top:0.4em;font-size:0.8em;">Salvar glossário</button>
+  <!-- Card: Enviar documentos -->
+  <section class="card">
+    <header class="card-header">
+      <h2>1. Enviar documentos</h2>
+    </header>
+    <div class="card-body">
+      <label class="drop-zone" id="drop-zone">
+        <input type="file" id="file-input" accept="image/*,application/pdf" multiple>
+        <div class="drop-zone-icon">📄</div>
+        <strong>Arraste imagens ou PDFs aqui</strong>
+        <span class="drop-zone-hint">ou clique para escolher arquivos. PDFs com várias páginas são separados automaticamente.</span>
+      </label>
+      <div class="stats-row">
+        <div class="stat stat-queued">
+          <span class="stat-label">Fila</span>
+          <strong id="cnt-queued">0</strong>
+        </div>
+        <div class="stat stat-processing">
+          <span class="stat-label">Processando</span>
+          <strong id="cnt-processing">0</strong>
+        </div>
+        <div class="stat stat-needs">
+          <span class="stat-label">Com dúvida</span>
+          <strong id="cnt-needs">0</strong>
+        </div>
+        <div class="stat stat-approved">
+          <span class="stat-label">Aprovados</span>
+          <strong id="cnt-approved">0</strong>
+        </div>
+        <div class="stat stat-cost">
+          <span class="stat-label">Custo total</span>
+          <strong id="cost-total">US$ 0,0000</strong>
+        </div>
       </div>
     </div>
-  </aside>
-</div>
+  </section>
+
+  <!-- Card: Documentos -->
+  <section class="card">
+    <header class="card-header">
+      <h2>2. Documentos</h2>
+      <div class="card-actions">
+        <button class="btn btn-secondary btn-small" id="export-zip" type="button">Baixar aprovados (ZIP)</button>
+        <button class="btn btn-secondary btn-small btn-danger-outline" id="clear-all" type="button">Limpar tudo</button>
+      </div>
+    </header>
+    <div class="card-body docs-split">
+      <ul class="docs-list" id="docs-list">
+        <li class="docs-empty">Nenhum documento ainda.</li>
+      </ul>
+      <div class="work-area" id="work">
+        <div class="work-empty">
+          <p>Selecione um documento na lista à esquerda para revisar.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+</main>
 
 <div class="toast" id="toast"></div>
 
@@ -317,16 +857,6 @@ async function dbAll() {
     const req = tx.objectStore('docs').getAll();
     req.onsuccess = () => resolve(req.result || []);
     req.onerror = e => reject(e.target.error);
-  });
-}
-
-async function dbDelete(id) {
-  const db = await openDB();
-  return new Promise((resolve, reject) => {
-    const tx = db.transaction('docs', 'readwrite');
-    tx.objectStore('docs').delete(id);
-    tx.oncomplete = () => resolve();
-    tx.onerror = e => reject(e.target.error);
   });
 }
 
@@ -439,14 +969,11 @@ RETORNE APENAS UM JSON neste shape (sem markdown, sem prefixo):
 }`;
 
 async function callAnthropic({ apiKey, model, imageDataUrl, glossario }) {
-  // imageDataUrl no formato "data:image/jpeg;base64,...."
   const m = imageDataUrl.match(/^data:(image\/[a-z]+);base64,(.+)$/);
   if (!m) throw new Error('imagem invalida');
   const [, mediaType, b64] = m;
 
   // System+glossario num bloco unico com cache_control (TTL 5min).
-  // Beneficio: chamadas repetidas em sequencia (double-pass, fila) lem do cache
-  // a 10% do custo normal, em vez de pagar 100% pelos ~3600 tokens repetidos.
   const body = {
     model,
     max_tokens: 4096,
@@ -485,7 +1012,6 @@ async function callAnthropic({ apiKey, model, imageDataUrl, glossario }) {
   const text = data.content?.[0]?.text || '';
   const usage = data.usage || {};
 
-  // Remove possiveis cercas de codigo
   let clean = text.trim();
   if (clean.startsWith('```')) {
     clean = clean.replace(/^```[a-zA-Z]*\n?/, '').replace(/\n?```\s*$/, '');
@@ -494,12 +1020,10 @@ async function callAnthropic({ apiKey, model, imageDataUrl, glossario }) {
   try {
     parsed = JSON.parse(clean);
   } catch (e) {
-    // Tolerante: tenta extrair o primeiro objeto JSON do meio do texto
     const match = clean.match(/\{[\s\S]*\}/);
     if (!match) throw new Error('resposta sem JSON parseavel: ' + clean.slice(0, 200));
     parsed = JSON.parse(match[0]);
   }
-  // Anexa metadados de uso (custo / cache hit)
   parsed._usage = {
     input_tokens: usage.input_tokens ?? 0,
     output_tokens: usage.output_tokens ?? 0,
@@ -514,17 +1038,12 @@ async function callAnthropic({ apiKey, model, imageDataUrl, glossario }) {
    DOUBLE-PASS + COMPARACAO
 ========================================================================= */
 async function transcribeWithDoublePass({ apiKey, model, imageDataUrl, glossario }) {
-  // Pass 1 sequencial: cria o cache do system+glossario na 1a chamada.
-  // Pass 2 le do cache (10% do custo) — fazer em paralelo erra os dois,
-  // sequencial garante que a 2a aproveite o cache.
   const r1 = await callAnthropic({ apiKey, model, imageDataUrl, glossario });
   const r2 = await callAnthropic({ apiKey, model, imageDataUrl, glossario });
 
-  // Merge: tomar r1 como base, adicionar divergencias como duvidas extras
   const merged = JSON.parse(JSON.stringify(r1));
   merged.incertezas = merged.incertezas || [];
 
-  // Diff de campos estruturados
   const flatA = JSON.stringify(r1.campos_estruturados || {});
   const flatB = JSON.stringify(r2.campos_estruturados || {});
   if (flatA !== flatB) {
@@ -546,7 +1065,6 @@ async function transcribeWithDoublePass({ apiKey, model, imageDataUrl, glossario
     });
   }
 
-  // Diff de confrontantes (compara listas de nomes)
   const namesA = (r1.confrontantes || []).map(c => c.nome).sort().join('|');
   const namesB = (r2.confrontantes || []).map(c => c.nome).sort().join('|');
   if (namesA !== namesB) {
@@ -565,18 +1083,16 @@ async function transcribeWithDoublePass({ apiKey, model, imageDataUrl, glossario
     campos_pass2: r2.campos_estruturados
   };
 
-  // Score: penaliza divergencias
   const baseScore = Math.min(r1.score_confianca ?? 0.85, r2.score_confianca ?? 0.85);
   const divergCount = merged.incertezas.length;
   merged.score_confianca = Math.max(0, baseScore - divergCount * 0.02);
   merged.needs_review = divergCount > 0;
   merged._strategy = `double-pass-${model}`;
-  // Custo: somar uso das duas passagens
   merged._usage = sumUsage(r1._usage, r2._usage);
   return merged;
 }
 
-// Pricing aproximado por modelo (USD por milhao de tokens). Atualizar se Anthropic mudar.
+// Pricing aproximado por modelo (USD por milhao de tokens).
 const PRICING = {
   'claude-haiku-4-5-20251001': { in: 1.00, out: 5.00 },
   'claude-sonnet-4-6':         { in: 3.00, out: 15.00 },
@@ -585,10 +1101,8 @@ const PRICING = {
 
 function estimateCostUSD(usage) {
   if (!usage) return 0;
-  // Se foi misturado (auto-strategy), usa Sonnet como pior caso pra mostrar teto
   const key = usage.model_used && PRICING[usage.model_used] ? usage.model_used : 'claude-sonnet-4-6';
   const p = PRICING[key];
-  // Cache write custa 1.25x base, cache read custa 0.1x base
   const inputCost = (
     (usage.input_tokens || 0) * p.in +
     (usage.cache_creation_input_tokens || 0) * p.in * 1.25 +
@@ -613,13 +1127,12 @@ function sumUsage(a, b) {
    ESTRATEGIA AUTO: Haiku primeiro, escala pra Sonnet se score baixo
 ========================================================================= */
 const STRATEGY_THRESHOLDS = {
-  score_min: 0.7,           // se score < 0.7, escala
-  max_doubts: 5              // se > 5 duvidas, escala
+  score_min: 0.7,
+  max_doubts: 5
 };
 
 async function transcribeWithStrategy({ apiKey, modelChoice, doublePass, imageDataUrl, glossario }) {
   if (modelChoice === 'auto') {
-    // Tenta primeiro com Haiku (mais barato, ~3x menos que Sonnet)
     const cheap = await callAnthropic({
       apiKey, model: 'claude-haiku-4-5-20251001', imageDataUrl, glossario
     });
@@ -633,11 +1146,10 @@ async function transcribeWithStrategy({ apiKey, modelChoice, doublePass, imageDa
       return cheap;
     }
 
-    // Escala pra Sonnet (mais preciso) — caso dificil
     const better = await callAnthropic({
       apiKey, model: 'claude-sonnet-4-6', imageDataUrl, glossario
     });
-    better._strategy = `auto:haiku-then-sonnet (haiku score ${cheap.score_confianca ?? '?'}, ${doubtCount} duvidas)`;
+    better._strategy = `auto:haiku→sonnet (haiku ${Math.round((cheap.score_confianca||0)*100)}%, ${doubtCount} dúvidas)`;
     better._haiku_attempt = {
       score: cheap.score_confianca,
       doubts: doubtCount,
@@ -648,12 +1160,11 @@ async function transcribeWithStrategy({ apiKey, modelChoice, doublePass, imageDa
     return better;
   }
 
-  // Modelo fixo
   if (doublePass) {
     return await transcribeWithDoublePass({ apiKey, model: modelChoice, imageDataUrl, glossario });
   }
   const single = await callAnthropic({ apiKey, model: modelChoice, imageDataUrl, glossario });
-  single._strategy = `single-pass:${modelChoice}`;
+  single._strategy = `single:${modelChoice.replace('claude-', '').replace('-20251001', '')}`;
   single.needs_review = (single.incertezas || []).length > 0;
   return single;
 }
@@ -748,6 +1259,7 @@ async function enqueueFile(file) {
 
 async function processNext() {
   if (State.processing) return;
+  if (!Config.apiKey) { return; }  // sem chave, não tenta
   const all = await dbAll();
   const next = all.find(d => d.status === 'queued');
   if (!next) return;
@@ -766,7 +1278,6 @@ async function processNext() {
     next.result = result;
     next.status = result.needs_review ? 'needs-review' : 'approved';
     if (!next.result.needs_review) {
-      // Sem duvidas: aprovado automaticamente
       next.approved_at = Date.now();
     }
     await dbPut(next);
@@ -803,57 +1314,84 @@ function renderQueue(all) {
 
   const list = $('#docs-list');
   list.innerHTML = '';
+  if (all.length === 0) {
+    list.innerHTML = '<li class="docs-empty">Nenhum documento ainda.</li>';
+    return;
+  }
   const sorted = [...all].sort((a, b) => a.added_at - b.added_at);
   for (const d of sorted) {
     const li = document.createElement('li');
-    if (d.id === State.selected) li.classList.add('active');
+    li.className = 'doc-item' + (d.id === State.selected ? ' active' : '');
     li.dataset.id = d.id;
+    const score = d.result?.score_confianca != null
+      ? ` · ${Math.round(d.result.score_confianca*100)}%`
+      : '';
+    const numero = d.result?.numero_registro
+      ? ` · nº ${escapeHtml(d.result.numero_registro)}`
+      : '';
     li.innerHTML = `
-      <div class="name">${escapeHtml(d.stem)}</div>
-      <div class="meta">
-        <span class="status-badge status-${d.status}">${d.status}</span>
-        ${d.result?.numero_registro ? `· nº ${escapeHtml(d.result.numero_registro)}` : ''}
-        ${d.result?.score_confianca != null ? ` · ${Math.round(d.result.score_confianca*100)}%` : ''}
+      <div class="doc-name">${escapeHtml(d.stem)}</div>
+      <div class="doc-meta">
+        <span class="badge badge-${d.status}">${statusLabel(d.status)}</span>
+        <span>${numero}${score}</span>
       </div>`;
     li.onclick = () => { State.selected = d.id; render(); };
     list.appendChild(li);
   }
 }
 
+function statusLabel(s) {
+  return {
+    'queued': 'na fila',
+    'processing': 'processando',
+    'needs-review': 'com dúvida',
+    'approved': 'aprovado',
+    'error': 'erro'
+  }[s] || s;
+}
+
 async function renderWork(all) {
   const work = $('#work');
-  const doubtsContainer = $('#doubts-container');
   if (!State.selected) {
-    work.innerHTML = '<div class="empty">Selecione um documento à esquerda ou jogue arquivos para começar.</div>';
-    doubtsContainer.innerHTML = '<p style="color:var(--muted);font-size:0.85em;">Nenhum documento selecionado.</p>';
+    work.innerHTML = '<div class="work-empty"><p>Selecione um documento na lista à esquerda para revisar.</p></div>';
     return;
   }
   const doc = all.find(d => d.id === State.selected);
   if (!doc) {
-    work.innerHTML = '<div class="empty">Documento removido.</div>';
+    work.innerHTML = '<div class="work-empty"><p>Documento removido.</p></div>';
     return;
   }
 
   if (doc.status === 'queued') {
-    work.innerHTML = `<div class="doc-card"><h2>${escapeHtml(doc.stem)}</h2>
-      <p style="color:var(--muted)">Na fila. Processamento começa quando você ligar "auto-processar" ou processar manualmente.</p>
-      <img class="img-preview" src="${doc.image_data_url}">
-      <button class="primary" id="force-process">Processar agora</button></div>`;
+    work.innerHTML = `
+      <div class="doc-detail">
+        <h3>${escapeHtml(doc.stem)}</h3>
+        <div class="doc-queued">
+          <p>Aguardando processamento.</p>
+          <img class="img-preview" src="${doc.image_data_url}" alt="">
+          <button class="btn btn-primary" id="force-process" type="button">Processar agora</button>
+        </div>
+      </div>`;
     $('#force-process').onclick = () => { State.processing = false; processNext(); };
-    doubtsContainer.innerHTML = '<p style="color:var(--muted);font-size:0.85em;">Aguardando processamento.</p>';
     return;
   }
   if (doc.status === 'processing') {
-    work.innerHTML = `<div class="doc-card"><h2>${escapeHtml(doc.stem)}</h2>
-      <p><span class="spinner"></span> Transcrevendo (double-pass)...</p>
-      <img class="img-preview" src="${doc.image_data_url}"></div>`;
+    work.innerHTML = `
+      <div class="doc-detail">
+        <h3>${escapeHtml(doc.stem)}</h3>
+        <div class="doc-processing"><span class="spinner"></span> Transcrevendo…</div>
+        <img class="img-preview" src="${doc.image_data_url}" alt="">
+      </div>`;
     return;
   }
   if (doc.status === 'error') {
-    work.innerHTML = `<div class="doc-card"><h2>${escapeHtml(doc.stem)}</h2>
-      <p style="color:var(--danger)">Erro: ${escapeHtml(doc.error || '')}</p>
-      <img class="img-preview" src="${doc.image_data_url}">
-      <button class="secondary" id="retry">Tentar novamente</button></div>`;
+    work.innerHTML = `
+      <div class="doc-detail">
+        <h3>${escapeHtml(doc.stem)}</h3>
+        <div class="doc-error"><strong>Erro:</strong> ${escapeHtml(doc.error || '')}</div>
+        <img class="img-preview" src="${doc.image_data_url}" alt="">
+        <button class="btn btn-secondary" id="retry" type="button">Tentar de novo</button>
+      </div>`;
     $('#retry').onclick = async () => { doc.status = 'queued'; doc.error = null; await dbPut(doc); render(); processNext(); };
     return;
   }
@@ -864,34 +1402,58 @@ async function renderWork(all) {
   const totalDoubts = (r.incertezas || []).length;
   const resolvedDoubts = Object.keys(doc.approvals || {}).length;
   const allResolved = totalDoubts === 0 || resolvedDoubts >= totalDoubts;
-
   const bodyHtml = renderBodyWithDoubts(r.html_corpo || '<em>sem corpo retornado</em>', doc);
+  const cost = estimateCostUSD(r._usage);
+
+  const fieldsHtml = [
+    ['Nº registro', r.numero_registro],
+    ['Data', ce.data_extenso || ce.data],
+    ['Lugar', ce.lugar],
+    ['Distrito', ce.distrito],
+    ['Município', ce.municipio],
+    ['Comarca', ce.comarca],
+    ['Adquirente', ce.adquirente],
+    ['Face', r.face],
+    ['Área', ce.area_descricao],
+  ].filter(([_, v]) => v).map(([k, v]) => `
+    <div>
+      <span class="field-label">${escapeHtml(k)}</span>
+      <span class="field-value">${escapeHtml(v)}</span>
+    </div>`).join('');
 
   work.innerHTML = `
-    <div class="doc-card">
-      <h2>Registro nº ${escapeHtml(r.numero_registro || '?')} <small style="font-weight:normal;font-size:0.65em;color:var(--muted)">— ${escapeHtml(doc.stem)}</small></h2>
-      <div class="doc-meta">
-        <span><strong>Data:</strong> ${escapeHtml(ce.data_extenso || ce.data || '?')}</span>
-        <span><strong>Lugar:</strong> ${escapeHtml(ce.lugar || '?')}</span>
-        <span><strong>Município:</strong> ${escapeHtml(ce.municipio || '?')}</span>
-        <span><strong>Comarca:</strong> ${escapeHtml(ce.comarca || '?')}</span>
-        <span><strong>Adquirente:</strong> ${escapeHtml(ce.adquirente || '?')}</span>
-        <span><strong>Score:</strong> ${Math.round((r.score_confianca||0)*100)}%</span>
-        <span style="color:var(--muted);font-size:0.85em;"><strong>Custo:</strong> US$ ${estimateCostUSD(r._usage).toFixed(4)}</span>
-        <span style="color:var(--muted);font-size:0.8em;flex-basis:100%;"><strong>Estratégia:</strong> ${escapeHtml(r._strategy || '?')}</span>
+    <article class="doc-detail">
+      <h3>Registro nº ${escapeHtml(r.numero_registro || '?')}</h3>
+      <div class="doc-stem">${escapeHtml(doc.stem)}</div>
+
+      <div class="doc-meta-row">
+        <span class="pill"><strong>Score:</strong> ${Math.round((r.score_confianca||0)*100)}%</span>
+        <span class="pill"><strong>Custo:</strong> US$ ${cost.toFixed(4)}</span>
+        <span class="pill"><strong>Estratégia:</strong> ${escapeHtml(r._strategy || '?')}</span>
+        <span class="pill"><strong>Dúvidas:</strong> ${resolvedDoubts}/${totalDoubts}</span>
       </div>
-      <img class="img-preview" src="${doc.image_data_url}">
-      ${bodyHtml}
+
+      <div class="doc-fields">${fieldsHtml}</div>
+
+      <img class="img-preview" src="${doc.image_data_url}" alt="Imagem original do registro">
+
+      <div class="transcricao-box">${bodyHtml}</div>
+
       ${renderConfrontantes(r.confrontantes)}
       ${renderSelos(r.selos_fiscais)}
+
+      ${renderDoubtsSection(r.incertezas || [], doc)}
+
       <div class="approve-row">
-        <span class="stats">${resolvedDoubts}/${totalDoubts} dúvidas resolvidas</span>
-        <button class="secondary" id="reprocess">Reprocessar</button>
-        <button class="primary" id="approve-btn" ${allResolved ? '' : 'disabled'}>
-          ${doc.status === 'approved' ? 'Aprovado ✓' : 'Aprovar documento'}
+        <span class="resolved-stats ${allResolved ? 'complete' : ''}">
+          ${allResolved ? '✓ Pronto pra aprovar' : `Faltam ${totalDoubts - resolvedDoubts} de ${totalDoubts} dúvidas`}
+        </span>
+        <button class="btn btn-secondary" id="reprocess" type="button">Reprocessar</button>
+        <button class="btn btn-success" id="approve-btn" ${allResolved ? '' : 'disabled'} type="button">
+          ${doc.status === 'approved' ? '✓ Aprovado' : 'Aprovar documento'}
         </button>
       </div>
-    </div>
+    </article>
   `;
 
   $('#approve-btn').onclick = async () => {
@@ -907,63 +1469,16 @@ async function renderWork(all) {
     await dbPut(doc); render(); processNext();
   };
 
-  // Wire doubt clicks
-  document.querySelectorAll('.incerto[data-doubt-id]').forEach(el => {
+  // Wire doubt clicks no texto
+  document.querySelectorAll('.transcricao-box .incerto[data-doubt-id]').forEach(el => {
     el.onclick = () => focusDoubt(el.dataset.doubtId);
   });
 
-  renderDoubts(doc);
-}
-
-function renderBodyWithDoubts(html, doc) {
-  // Aplica resolucoes do usuario
-  let out = html;
-  for (const [doubtId, resolved] of Object.entries(doc.approvals || {})) {
-    // Substitui o conteudo do span de incerto pelo valor aprovado, mantendo marcador
-    const re = new RegExp(`(<span[^>]*data-doubt-id="${doubtId}"[^>]*>)([^<]*)(</span>)`, 'g');
-    out = out.replace(re, `<span class="incerto resolved" data-doubt-id="${doubtId}" title="aprovado: ${escapeAttr(resolved.value)}">${escapeHtml(resolved.value)}</span>`);
-  }
-  return out;
-}
-
-function renderDoubts(doc) {
-  const container = $('#doubts-container');
-  const doubts = (doc.result?.incertezas || []);
-  if (doubts.length === 0) {
-    container.innerHTML = '<p style="color:var(--ok);font-size:0.9em;">✓ Sem dúvidas detectadas. Documento pronto para aprovação.</p>';
-    return;
-  }
-  container.innerHTML = '';
-  for (const d of doubts) {
-    const resolved = (doc.approvals || {})[d.id];
-    const card = document.createElement('div');
-    card.className = 'doubt-card' + (resolved ? ' resolved' : '');
-    card.id = `doubt-${d.id}`;
-
-    const opts = [d.leitura_principal, ...(d.leituras_alternativas || [])].filter(Boolean);
-    const optsHtml = opts.map((o, i) => `
-      <button data-doubt="${d.id}" data-value="${escapeAttr(o)}"
-        ${resolved && resolved.value === o ? 'class="selected"' : ''}>
-        ${escapeHtml(o)}${i === 0 ? ' <small style="color:var(--muted)">(principal)</small>' : ''}
-      </button>`).join('');
-
-    card.innerHTML = `
-      <div class="label">[${escapeHtml(d.id)}] confianca: ${escapeHtml(d.confianca || 'media')}</div>
-      <div style="font-size:0.88em;"><strong>"${escapeHtml(d.trecho || '')}"</strong></div>
-      <div class="options">${optsHtml}</div>
-      <div class="custom">
-        <input type="text" placeholder="Digitar outra leitura..." value="${resolved && !opts.includes(resolved.value) ? escapeAttr(resolved.value) : ''}">
-        <button data-doubt="${d.id}" class="custom-btn">Aplicar</button>
-      </div>
-      ${d.justificativa ? `<div class="reason">${escapeHtml(d.justificativa)}</div>` : ''}
-    `;
-    container.appendChild(card);
-  }
-  // Wire
-  container.querySelectorAll('.options button').forEach(b => {
+  // Wire das opções de cada dúvida
+  document.querySelectorAll('.doubt-card .doubt-options button').forEach(b => {
     b.onclick = () => resolveDoubt(doc.id, b.dataset.doubt, b.dataset.value);
   });
-  container.querySelectorAll('.custom-btn').forEach(b => {
+  document.querySelectorAll('.doubt-card .doubt-custom button').forEach(b => {
     b.onclick = () => {
       const inp = b.parentElement.querySelector('input');
       const v = inp.value.trim();
@@ -971,6 +1486,52 @@ function renderDoubts(doc) {
       resolveDoubt(doc.id, b.dataset.doubt, v);
     };
   });
+}
+
+function renderBodyWithDoubts(html, doc) {
+  let out = html;
+  for (const [doubtId, resolved] of Object.entries(doc.approvals || {})) {
+    const re = new RegExp(`(<span[^>]*data-doubt-id="${doubtId}"[^>]*>)([^<]*)(</span>)`, 'g');
+    out = out.replace(re, `<span class="incerto resolved" data-doubt-id="${doubtId}" title="aprovado: ${escapeAttr(resolved.value)}">${escapeHtml(resolved.value)}</span>`);
+  }
+  return out;
+}
+
+function renderDoubtsSection(doubts, doc) {
+  if (doubts.length === 0) {
+    return `<div class="doubts-section">
+      <div class="no-doubts">✓ Sem dúvidas — o modelo entregou transcrição limpa.</div>
+    </div>`;
+  }
+  const cards = doubts.map(d => {
+    const resolved = (doc.approvals || {})[d.id];
+    const opts = [d.leitura_principal, ...(d.leituras_alternativas || [])].filter(Boolean);
+    const optsHtml = opts.map((o, i) => `
+      <button data-doubt="${escapeAttr(d.id)}" data-value="${escapeAttr(o)}"
+        class="${resolved && resolved.value === o ? 'selected' : ''}" type="button">
+        ${escapeHtml(o)}${i === 0 ? ' <small>(principal)</small>' : ''}
+      </button>`).join('');
+    const customValue = resolved && !opts.includes(resolved.value) ? escapeAttr(resolved.value) : '';
+    return `
+      <div class="doubt-card ${resolved ? 'resolved' : ''}" id="doubt-${escapeAttr(d.id)}">
+        <div class="doubt-header">
+          <span class="doubt-id">${escapeHtml(d.id || '?')}</span>
+          <span class="doubt-confidence-${d.confianca || 'media'}">${escapeHtml(d.confianca || 'media')}</span>
+        </div>
+        <div class="doubt-trecho">"${escapeHtml(d.trecho || '')}"</div>
+        <div class="doubt-options">${optsHtml}</div>
+        <div class="doubt-custom">
+          <input type="text" placeholder="Digitar outra leitura…" value="${customValue}">
+          <button class="btn btn-secondary btn-small" data-doubt="${escapeAttr(d.id)}" type="button">Aplicar</button>
+        </div>
+        ${d.justificativa ? `<p class="doubt-reason">${escapeHtml(d.justificativa)}</p>` : ''}
+      </div>`;
+  }).join('');
+  return `
+    <div class="doubts-section">
+      <h4>Dúvidas a resolver <span class="badge">${doubts.length}</span></h4>
+      <div class="doubts-grid">${cards}</div>
+    </div>`;
 }
 
 async function resolveDoubt(docId, doubtId, value) {
@@ -997,18 +1558,20 @@ function focusDoubt(doubtId) {
 
 function renderConfrontantes(list) {
   if (!list || !list.length) return '';
-  return `<div style="margin:0.8em 0;font-size:0.9em;">
-    <strong>Confrontantes:</strong>
-    <ul style="margin:0.3em 0 0 0;padding-left:1.2em;">
-      ${list.map(c => `<li>${escapeHtml(c.nome || '?')} ${c.posicao ? `<span style="color:var(--muted)">— ${escapeHtml(c.posicao)}</span>` : ''}</li>`).join('')}
+  return `<div class="confrontantes-box">
+    <strong>Confrontantes</strong>
+    <ul>
+      ${list.map(c => `<li>${escapeHtml(c.nome || '?')}${c.posicao ? ` — <em>${escapeHtml(c.posicao)}</em>` : ''}</li>`).join('')}
     </ul>
   </div>`;
 }
 
 function renderSelos(s) {
   if (!s) return '';
-  return `<div style="font-size:0.85em;color:var(--muted);margin-top:0.6em;border-top:1px dotted var(--border);padding-top:0.5em;">
-    <strong>Selos:</strong> ${escapeHtml(s.descricao || JSON.stringify(s))}</div>`;
+  return `<div class="selos-box">
+    <strong>Selos fiscais</strong>
+    ${escapeHtml(s.descricao || JSON.stringify(s))}
+  </div>`;
 }
 
 function escapeHtml(s) {
@@ -1051,7 +1614,6 @@ async function exportApprovedZip() {
 
   for (const d of approved) {
     const stem = d.stem;
-    // Aplicar resolucoes no HTML final
     const corpoFinal = renderBodyWithDoubts(d.result.html_corpo || '', d);
 
     const fullHtml = `<!DOCTYPE html>
@@ -1080,7 +1642,6 @@ Score automático: ${Math.round((d.result.score_confianca||0)*100)}% · Dúvidas
       approvals: d.approvals
     }, null, 2));
 
-    // Imagem
     const imgB64 = d.image_data_url.split(',')[1];
     zip.file(`imagens/${stem}.jpg`, imgB64, { base64: true });
 
@@ -1126,24 +1687,39 @@ h1{border-bottom:2px solid #333;padding-bottom:0.3em;font-size:1.4em;}
    BINDINGS
 ========================================================================= */
 function bindUI() {
-  // API key
   const keyInput = $('#api-key');
   const keyStatus = $('#key-status');
+
   keyInput.value = Config.apiKey;
   refreshKeyStatus();
   $('#save-key').onclick = () => {
     Config.apiKey = keyInput.value.trim();
     refreshKeyStatus();
-    toast(Config.apiKey ? 'Chave salva' : 'Chave removida', 'success');
+    toast(Config.apiKey ? 'Chave salva ✓' : 'Chave removida', 'success');
+    // Se acabou de salvar, retoma processamento
+    if (Config.apiKey) setTimeout(processNext, 100);
   };
   function refreshKeyStatus() {
     if (Config.apiKey && Config.apiKey.length > 20) {
-      keyStatus.textContent = '✓ chave salva (' + Config.apiKey.slice(0,8) + '...)';
+      keyStatus.textContent = '✓ ' + Config.apiKey.slice(0, 12) + '…';
       keyStatus.classList.add('ok');
     } else {
       keyStatus.textContent = 'sem chave';
       keyStatus.classList.remove('ok');
     }
+  }
+
+  // Toggle do card de configuração
+  const configCard = $('#config-card');
+  const toggleBtn = $('#toggle-config');
+  toggleBtn.onclick = () => {
+    configCard.classList.toggle('collapsed');
+    toggleBtn.textContent = configCard.classList.contains('collapsed') ? 'mostrar' : 'esconder';
+  };
+  // Auto-colapsa se já tem chave salva
+  if (Config.apiKey && Config.apiKey.length > 20) {
+    configCard.classList.add('collapsed');
+    toggleBtn.textContent = 'mostrar';
   }
 
   // Model
@@ -1156,18 +1732,33 @@ function bindUI() {
 
   // Reviewer name
   const reviewerInput = $('#reviewer-name');
-  reviewerInput.value = localStorage.getItem('reviewer_name') || '';
+  const reviewerPill = $('#reviewer-pill');
+  const reviewerDisplay = $('#reviewer-display');
+  const reviewerAvatar = $('#reviewer-avatar');
+  const currentName = localStorage.getItem('reviewer_name') || '';
+  reviewerInput.value = currentName;
+  updateReviewerPill(currentName);
   reviewerInput.onchange = () => {
     const v = reviewerInput.value.trim();
     if (v) localStorage.setItem('reviewer_name', v);
     else localStorage.removeItem('reviewer_name');
+    updateReviewerPill(v);
   };
+  function updateReviewerPill(name) {
+    if (name) {
+      reviewerDisplay.textContent = name;
+      reviewerAvatar.textContent = name.charAt(0).toUpperCase();
+      reviewerPill.style.display = '';
+    } else {
+      reviewerPill.style.display = 'none';
+    }
+  }
 
   // Glossario
   $('#glossario-text').value = Config.glossario;
   $('#save-glossario').onclick = () => {
     Config.glossario = $('#glossario-text').value;
-    toast('Glossário salvo', 'success');
+    toast('Glossário salvo ✓', 'success');
   };
 
   // Drop zone
@@ -1190,7 +1781,7 @@ function bindUI() {
 
   // Clear all
   $('#clear-all').onclick = async () => {
-    if (!confirm('Limpar TODA a fila local? (Não afeta documentos já baixados.)')) return;
+    if (!confirm('Limpar TODA a fila local? (Não afeta documentos já baixados em ZIP.)')) return;
     await dbClear();
     State.selected = null;
     await render();
@@ -1203,7 +1794,6 @@ function bindUI() {
 ========================================================================= */
 bindUI();
 render();
-// Tenta retomar processamento se houver pendentes
 setTimeout(processNext, 500);
 </script>
 </body>
