@@ -907,15 +907,40 @@
         </p>
 
         <div class="form-row">
-          <label for="openai-key">Chave OpenAI (opcional, para usar GPT-4o / GPT-4o-mini)</label>
+          <label for="gemini-key">🆓 Chave Gemini (Google) — <strong>1500 req/dia GRÁTIS, sem cartão</strong></label>
+          <div class="input-with-action">
+            <input type="password" id="gemini-key" placeholder="AIza..." autocomplete="off">
+            <button class="btn btn-secondary btn-small" id="save-gemini-key" type="button">Salvar</button>
+          </div>
+          <p class="hint">
+            <strong>Opção mais recomendada pra começar grátis.</strong> Pegue em
+            <a href="https://aistudio.google.com/apikey" target="_blank">aistudio.google.com/apikey</a>
+            (login Google, sem cartão de crédito). Gemini Flash-Lite tem 1500 req/dia no free tier — dá pros 14 PDFs do POC.
+          </p>
+        </div>
+
+        <div class="form-row">
+          <label for="openrouter-key">🆓 Chave OpenRouter — <strong>200 req/dia GRÁTIS em vários modelos</strong></label>
+          <div class="input-with-action">
+            <input type="password" id="openrouter-key" placeholder="sk-or-v1-..." autocomplete="off">
+            <button class="btn btn-secondary btn-small" id="save-openrouter-key" type="button">Salvar</button>
+          </div>
+          <p class="hint">
+            Acesso a Qwen 72B, Llama 3.2 90B, Pixtral e outros. Pegue em
+            <a href="https://openrouter.ai/keys" target="_blank">openrouter.ai/keys</a>.
+            Free tier compartilhado entre todos os modelos free (20 req/min, 200 req/dia).
+          </p>
+        </div>
+
+        <div class="form-row">
+          <label for="openai-key">Chave OpenAI (opcional, pago — GPT-4o)</label>
           <div class="input-with-action">
             <input type="password" id="openai-key" placeholder="sk-..." autocomplete="off">
             <button class="btn btn-secondary btn-small" id="save-openai-key" type="button">Salvar</button>
           </div>
           <p class="hint">
-            <strong>GPT-4o-mini é ~10× mais barato que Sonnet</strong> (US$ 0,003/img vs US$ 0,045). Pegue em
+            GPT-4o-mini ~US$ 0,003/img. Pegue em
             <a href="https://platform.openai.com/api-keys" target="_blank">platform.openai.com/api-keys</a>.
-            Fica só no <code>localStorage</code>. Você precisa dela se escolher uma estratégia com modelo OpenAI.
           </p>
         </div>
 
@@ -928,16 +953,24 @@
         <div class="form-row">
           <label for="model">Modelo / estratégia</label>
           <select id="model">
-            <optgroup label="★ Estratégias auto (mais econômicas)">
-              <option value="auto-mixed">auto-mixed: GPT-4o-mini → Sonnet (recomendado, ~10× mais barato)</option>
+            <optgroup label="🆓 GRÁTIS (free tier — só precisa criar conta)">
+              <option value="gemini-2.5-flash-lite">Gemini 2.5 Flash-Lite ★ — 1500 req/dia grátis, sem cartão</option>
+              <option value="gemini-2.5-flash">Gemini 2.5 Flash — 500 req/dia grátis, melhor qualidade</option>
+              <option value="openrouter/qwen/qwen-2-vl-72b-instruct:free">Qwen 2 VL 72B (via OpenRouter) — 200/dia grátis</option>
+              <option value="openrouter/meta-llama/llama-3.2-90b-vision-instruct:free">Llama 3.2 90B Vision (via OpenRouter) — 200/dia grátis</option>
+              <option value="openrouter/mistralai/mistral-small-3.1-24b-instruct:free">Mistral Small 3.1 (via OpenRouter) — 200/dia grátis</option>
+              <option value="openrouter/google/gemma-3-27b-it:free">Gemma 3 27B (via OpenRouter) — 200/dia grátis</option>
+            </optgroup>
+            <optgroup label="★ Estratégias auto (mistura modelos pagos)">
+              <option value="auto-mixed">auto-mixed: GPT-4o-mini → Sonnet</option>
               <option value="auto-anthropic">auto-anthropic: Haiku → Sonnet</option>
               <option value="auto-openai">auto-openai: GPT-4o-mini → GPT-4o</option>
             </optgroup>
-            <optgroup label="OpenAI (mais barato)">
+            <optgroup label="OpenAI (pago)">
               <option value="gpt-4o-mini">GPT-4o-mini (~US$ 0,003/img)</option>
               <option value="gpt-4o">GPT-4o (~US$ 0,02/img)</option>
             </optgroup>
-            <optgroup label="Anthropic">
+            <optgroup label="Anthropic (pago)">
               <option value="claude-haiku-4-5-20251001">Haiku 4.5 (~US$ 0,015/img)</option>
               <option value="claude-sonnet-4-6">Sonnet 4.6 (~US$ 0,045/img)</option>
               <option value="claude-opus-4-7">Opus 4.7 (~US$ 0,22/img)</option>
@@ -1142,7 +1175,11 @@ const Config = {
   set apiKey(v) { v ? localStorage.setItem('anthropic_key', v) : localStorage.removeItem('anthropic_key'); },
   get openaiKey() { return localStorage.getItem('openai_key') || ''; },
   set openaiKey(v) { v ? localStorage.setItem('openai_key', v) : localStorage.removeItem('openai_key'); },
-  get model() { return localStorage.getItem('model') || 'auto-mixed'; },
+  get geminiKey() { return localStorage.getItem('gemini_key') || ''; },
+  set geminiKey(v) { v ? localStorage.setItem('gemini_key', v) : localStorage.removeItem('gemini_key'); },
+  get openrouterKey() { return localStorage.getItem('openrouter_key') || ''; },
+  set openrouterKey(v) { v ? localStorage.setItem('openrouter_key', v) : localStorage.removeItem('openrouter_key'); },
+  get model() { return localStorage.getItem('model') || 'gemini-2.5-flash-lite'; },
   set model(v) { localStorage.setItem('model', v); },
   get doublePass() { return localStorage.getItem('double_pass') === '1'; },
   set doublePass(v) { localStorage.setItem('double_pass', v ? '1' : '0'); },
@@ -1154,6 +1191,8 @@ function getProvider(model) {
   if (!model) return null;
   if (model.startsWith('claude-')) return 'anthropic';
   if (model.startsWith('gpt-')) return 'openai';
+  if (model.startsWith('gemini-')) return 'gemini';
+  if (model.startsWith('openrouter/')) return 'openrouter';
   return null;
 }
 
@@ -1262,7 +1301,136 @@ async function callProvider({ model, imageDataUrl, glossario }) {
     if (!Config.openaiKey) throw new Error('Sem chave OpenAI. Configure no card Configuração.');
     return await callOpenAI({ apiKey: Config.openaiKey, model, imageDataUrl, glossario });
   }
+  if (provider === 'gemini') {
+    if (!Config.geminiKey) throw new Error('Sem chave Gemini. Configure no card Configuração.');
+    return await callGemini({ apiKey: Config.geminiKey, model, imageDataUrl, glossario });
+  }
+  if (provider === 'openrouter') {
+    if (!Config.openrouterKey) throw new Error('Sem chave OpenRouter. Configure no card Configuração.');
+    return await callOpenRouter({ apiKey: Config.openrouterKey, model, imageDataUrl, glossario });
+  }
   throw new Error(`Provider desconhecido para modelo: ${model}`);
+}
+
+// ----- Google Gemini -----
+async function callGemini({ apiKey, model, imageDataUrl, glossario }) {
+  const m = imageDataUrl.match(/^data:(image\/[a-z]+);base64,(.+)$/);
+  if (!m) throw new Error('imagem invalida');
+  const [, mediaType, b64] = m;
+
+  const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
+  const body = {
+    systemInstruction: {
+      parts: [{ text: SYSTEM_PROMPT + '\n\n---\nGLOSSARIO DE REFERENCIA:\n\n' + glossario }]
+    },
+    contents: [{
+      role: 'user',
+      parts: [
+        { inline_data: { mime_type: mediaType, data: b64 } },
+        { text: 'Transcreva a imagem seguindo o pipeline e regras. Retorne APENAS o JSON valido.' }
+      ]
+    }],
+    generationConfig: {
+      responseMimeType: 'application/json',
+      maxOutputTokens: 4096,
+      temperature: 0
+    }
+  };
+
+  const resp = await fetch(url, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body)
+  });
+
+  if (!resp.ok) {
+    const errBody = await resp.text();
+    throw new Error(`Gemini ${resp.status}: ${errBody.slice(0, 300)}`);
+  }
+  const data = await resp.json();
+  const text = data.candidates?.[0]?.content?.parts?.[0]?.text || '';
+  const usage = data.usageMetadata || {};
+
+  let clean = text.trim();
+  if (clean.startsWith('```')) {
+    clean = clean.replace(/^```[a-zA-Z]*\n?/, '').replace(/\n?```\s*$/, '');
+  }
+  let parsed;
+  try {
+    parsed = JSON.parse(clean);
+  } catch (e) {
+    const match = clean.match(/\{[\s\S]*\}/);
+    if (!match) throw new Error('Gemini respondeu sem JSON parseavel: ' + clean.slice(0, 200));
+    parsed = JSON.parse(match[0]);
+  }
+  parsed._usage = {
+    input_tokens: usage.promptTokenCount || 0,
+    output_tokens: usage.candidatesTokenCount || 0,
+    cache_creation_input_tokens: 0,
+    cache_read_input_tokens: usage.cachedContentTokenCount || 0,
+    model_used: model
+  };
+  return parsed;
+}
+
+// ----- OpenRouter (formato OpenAI-compat) -----
+async function callOpenRouter({ apiKey, model, imageDataUrl, glossario }) {
+  // Remove o prefixo "openrouter/" pra ter o nome real do modelo
+  const realModel = model.replace(/^openrouter\//, '');
+  const body = {
+    model: realModel,
+    max_tokens: 4096,
+    messages: [
+      { role: 'system', content: SYSTEM_PROMPT + '\n\n---\nGLOSSARIO DE REFERENCIA:\n\n' + glossario },
+      {
+        role: 'user',
+        content: [
+          { type: 'image_url', image_url: { url: imageDataUrl } },
+          { type: 'text', text: 'Transcreva a imagem seguindo o pipeline e regras. Retorne APENAS o JSON valido (sem cercas de codigo).' }
+        ]
+      }
+    ]
+  };
+
+  const resp = await fetch('https://openrouter.ai/api/v1/chat/completions', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${apiKey}`,
+      'HTTP-Referer': 'https://henriquesimoessilva3-png.github.io/cartorio-revisao/',
+      'X-Title': 'Cartorio Revisao'
+    },
+    body: JSON.stringify(body)
+  });
+
+  if (!resp.ok) {
+    const errBody = await resp.text();
+    throw new Error(`OpenRouter ${resp.status}: ${errBody.slice(0, 300)}`);
+  }
+  const data = await resp.json();
+  const text = data.choices?.[0]?.message?.content || '';
+  const usage = data.usage || {};
+
+  let clean = text.trim();
+  if (clean.startsWith('```')) {
+    clean = clean.replace(/^```[a-zA-Z]*\n?/, '').replace(/\n?```\s*$/, '');
+  }
+  let parsed;
+  try {
+    parsed = JSON.parse(clean);
+  } catch (e) {
+    const match = clean.match(/\{[\s\S]*\}/);
+    if (!match) throw new Error('OpenRouter respondeu sem JSON parseavel: ' + clean.slice(0, 200));
+    parsed = JSON.parse(match[0]);
+  }
+  parsed._usage = {
+    input_tokens: usage.prompt_tokens || 0,
+    output_tokens: usage.completion_tokens || 0,
+    cache_creation_input_tokens: 0,
+    cache_read_input_tokens: 0,
+    model_used: model
+  };
+  return parsed;
 }
 
 const OPENAI_URL = 'https://api.openai.com/v1/chat/completions';
@@ -1450,14 +1618,23 @@ async function transcribeWithDoublePass({ model, imageDataUrl, glossario }) {
 }
 
 // Pricing aproximado por modelo (USD por milhao de tokens).
+// Modelos com prefixo "free:" sao gratuitos no tier free do provider (0 custo enquanto dentro do limite).
 const PRICING = {
   // Anthropic
   'claude-haiku-4-5-20251001': { in: 1.00, out: 5.00, cache_w: 1.25, cache_r: 0.10 },
   'claude-sonnet-4-6':         { in: 3.00, out: 15.00, cache_w: 1.25, cache_r: 0.10 },
   'claude-opus-4-7':           { in: 15.00, out: 75.00, cache_w: 1.25, cache_r: 0.10 },
-  // OpenAI (cache automatico, 50% off no input cached)
+  // OpenAI
   'gpt-4o-mini':               { in: 0.15, out: 0.60, cache_w: 1.0, cache_r: 0.50 },
   'gpt-4o':                    { in: 2.50, out: 10.00, cache_w: 1.0, cache_r: 0.50 },
+  // Google Gemini (free tier — preço zero enquanto dentro do quota diária)
+  'gemini-2.5-flash':          { in: 0, out: 0, cache_w: 1.0, cache_r: 1.0, free_tier: true },
+  'gemini-2.5-flash-lite':     { in: 0, out: 0, cache_w: 1.0, cache_r: 1.0, free_tier: true },
+  // OpenRouter free models (custo zero, com rate limit menor)
+  'openrouter/meta-llama/llama-3.2-90b-vision-instruct:free': { in: 0, out: 0, cache_w: 1.0, cache_r: 1.0, free_tier: true },
+  'openrouter/qwen/qwen-2-vl-72b-instruct:free':              { in: 0, out: 0, cache_w: 1.0, cache_r: 1.0, free_tier: true },
+  'openrouter/google/gemma-3-27b-it:free':                    { in: 0, out: 0, cache_w: 1.0, cache_r: 1.0, free_tier: true },
+  'openrouter/mistralai/mistral-small-3.1-24b-instruct:free': { in: 0, out: 0, cache_w: 1.0, cache_r: 1.0, free_tier: true },
 };
 
 function estimateCostUSD(usage) {
@@ -1853,23 +2030,25 @@ async function processNext() {
   // Checa pelo menos UMA chave (anthropic ou openai), conforme o modelo configurado
   const provider = getProvider(Config.model) || (AUTO_STRATEGIES[Config.model] ?
     getProvider(AUTO_STRATEGIES[Config.model].cheap) : null);
-  // Pra auto-mixed precisa de AMBAS as chaves; verifica caso-a-caso
+  // Validacao de chave conforme modelo
   if (Config.model === 'auto-mixed') {
     if (!Config.apiKey || !Config.openaiKey) {
-      console.warn('[processNext] auto-mixed precisa de AMBAS as chaves');
-      toast('"auto-mixed" precisa de chave OpenAI E Anthropic. Configure as duas ou escolha outra estratégia.', 'error');
+      toast('"auto-mixed" precisa de chave OpenAI E Anthropic.', 'error');
       return;
     }
   } else if (provider === 'anthropic' && !Config.apiKey) {
-    console.warn('[processNext] sem chave Anthropic');
-    toast('Configure sua chave Anthropic no header (campo azul).', 'error');
+    toast('Configure sua chave Anthropic no header.', 'error');
     return;
   } else if (provider === 'openai' && !Config.openaiKey) {
-    console.warn('[processNext] sem chave OpenAI');
     toast('Configure sua chave OpenAI no card Configuração.', 'error');
     return;
+  } else if (provider === 'gemini' && !Config.geminiKey) {
+    toast('Configure sua chave Gemini no card Configuração (link aistudio.google.com/apikey).', 'error');
+    return;
+  } else if (provider === 'openrouter' && !Config.openrouterKey) {
+    toast('Configure sua chave OpenRouter no card Configuração (link openrouter.ai/keys).', 'error');
+    return;
   } else if (!provider && !AUTO_STRATEGIES[Config.model]) {
-    console.warn('[processNext] modelo desconhecido:', Config.model);
     toast('Modelo desconhecido configurado.', 'error');
     return;
   }
@@ -2196,8 +2375,10 @@ async function renderWork(all) {
   };
   $('#reprocess').onclick = async () => {
     const fromCache = doc.result?._from_cache;
+    const isFree = PRICING[Config.model]?.free_tier;
     const modelHint =
-      Config.model === 'auto-mixed' ? 'GPT-4o-mini ~US$ 0,003 (ou Sonnet ~US$ 0,045 se escalar)'
+      isFree ? 'GRÁTIS (dentro do free tier do provider)'
+      : Config.model === 'auto-mixed' ? 'GPT-4o-mini ~US$ 0,003 (ou Sonnet ~US$ 0,045 se escalar)'
       : Config.model === 'auto-anthropic' ? 'Haiku ~US$ 0,015 (ou Sonnet ~US$ 0,045 se escalar)'
       : Config.model === 'auto-openai' ? 'GPT-4o-mini ~US$ 0,003 (ou GPT-4o ~US$ 0,02 se escalar)'
       : Config.model.includes('gpt-4o-mini') ? '~US$ 0,003'
@@ -2526,23 +2707,27 @@ function bindUI() {
     }
   }
 
-  // OpenAI key (no card Configuracao)
-  const openaiInput = $('#openai-key');
-  if (openaiInput) {
-    openaiInput.value = Config.openaiKey;
-    const saveOpenaiKey = () => {
-      const v = openaiInput.value.trim();
-      if (v === Config.openaiKey) return;
-      Config.openaiKey = v;
-      toast(Config.openaiKey ? 'Chave OpenAI salva ✓' : 'Chave OpenAI removida', 'success');
-      if (Config.openaiKey) setTimeout(processNext, 100);
+  // Helper genérico pra bindar campos de chave de provider
+  function bindProviderKey(inputId, btnId, configProp, providerName) {
+    const inp = $(`#${inputId}`);
+    if (!inp) return;
+    inp.value = Config[configProp];
+    const save = () => {
+      const v = inp.value.trim();
+      if (v === Config[configProp]) return;
+      Config[configProp] = v;
+      toast(Config[configProp] ? `Chave ${providerName} salva ✓` : `Chave ${providerName} removida`, 'success');
+      if (Config[configProp]) setTimeout(processNext, 100);
     };
-    $('#save-openai-key').onclick = saveOpenaiKey;
-    openaiInput.onblur = saveOpenaiKey;
-    openaiInput.onkeydown = (e) => {
-      if (e.key === 'Enter') { e.preventDefault(); saveOpenaiKey(); openaiInput.blur(); }
+    $(`#${btnId}`).onclick = save;
+    inp.onblur = save;
+    inp.onkeydown = (e) => {
+      if (e.key === 'Enter') { e.preventDefault(); save(); inp.blur(); }
     };
   }
+  bindProviderKey('openai-key',     'save-openai-key',     'openaiKey',     'OpenAI');
+  bindProviderKey('gemini-key',     'save-gemini-key',     'geminiKey',     'Gemini');
+  bindProviderKey('openrouter-key', 'save-openrouter-key', 'openrouterKey', 'OpenRouter');
 
   // Toggle do card de configuração
   const configCard = $('#config-card');
