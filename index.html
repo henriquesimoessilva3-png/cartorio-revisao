@@ -902,9 +902,22 @@
       <div class="form-grid">
 
         <p class="hint" style="margin: 0 0 0.4em;">
-          A chave da API está no <strong>header azul no topo</strong>. Fica apenas no <code>localStorage</code> do seu navegador (nunca sobe pro servidor).
+          A chave <strong>Anthropic</strong> fica no header azul no topo (campo principal).
           Pegue em <a href="https://console.anthropic.com/settings/keys" target="_blank">console.anthropic.com</a>.
         </p>
+
+        <div class="form-row">
+          <label for="openai-key">Chave OpenAI (opcional, para usar GPT-4o / GPT-4o-mini)</label>
+          <div class="input-with-action">
+            <input type="password" id="openai-key" placeholder="sk-..." autocomplete="off">
+            <button class="btn btn-secondary btn-small" id="save-openai-key" type="button">Salvar</button>
+          </div>
+          <p class="hint">
+            <strong>GPT-4o-mini é ~10× mais barato que Sonnet</strong> (US$ 0,003/img vs US$ 0,045). Pegue em
+            <a href="https://platform.openai.com/api-keys" target="_blank">platform.openai.com/api-keys</a>.
+            Fica só no <code>localStorage</code>. Você precisa dela se escolher uma estratégia com modelo OpenAI.
+          </p>
+        </div>
 
         <div class="form-row">
           <label for="reviewer-name">Seu nome (revisor)</label>
@@ -915,10 +928,20 @@
         <div class="form-row">
           <label for="model">Modelo / estratégia</label>
           <select id="model">
-            <option value="auto">★ auto — Haiku primeiro, escala pra Sonnet se difícil (recomendado)</option>
-            <option value="claude-haiku-4-5-20251001">Haiku 4.5 — mais barato (~US$ 0,015/img)</option>
-            <option value="claude-sonnet-4-6">Sonnet 4.6 — equilibrado (~US$ 0,045/img)</option>
-            <option value="claude-opus-4-7">Opus 4.7 — mais preciso (~US$ 0,22/img)</option>
+            <optgroup label="★ Estratégias auto (mais econômicas)">
+              <option value="auto-mixed">auto-mixed: GPT-4o-mini → Sonnet (recomendado, ~10× mais barato)</option>
+              <option value="auto-anthropic">auto-anthropic: Haiku → Sonnet</option>
+              <option value="auto-openai">auto-openai: GPT-4o-mini → GPT-4o</option>
+            </optgroup>
+            <optgroup label="OpenAI (mais barato)">
+              <option value="gpt-4o-mini">GPT-4o-mini (~US$ 0,003/img)</option>
+              <option value="gpt-4o">GPT-4o (~US$ 0,02/img)</option>
+            </optgroup>
+            <optgroup label="Anthropic">
+              <option value="claude-haiku-4-5-20251001">Haiku 4.5 (~US$ 0,015/img)</option>
+              <option value="claude-sonnet-4-6">Sonnet 4.6 (~US$ 0,045/img)</option>
+              <option value="claude-opus-4-7">Opus 4.7 (~US$ 0,22/img)</option>
+            </optgroup>
           </select>
         </div>
 
@@ -1117,13 +1140,22 @@ async function dbClear() {
 const Config = {
   get apiKey() { return localStorage.getItem('anthropic_key') || ''; },
   set apiKey(v) { v ? localStorage.setItem('anthropic_key', v) : localStorage.removeItem('anthropic_key'); },
-  get model() { return localStorage.getItem('model') || 'auto'; },
+  get openaiKey() { return localStorage.getItem('openai_key') || ''; },
+  set openaiKey(v) { v ? localStorage.setItem('openai_key', v) : localStorage.removeItem('openai_key'); },
+  get model() { return localStorage.getItem('model') || 'auto-mixed'; },
   set model(v) { localStorage.setItem('model', v); },
   get doublePass() { return localStorage.getItem('double_pass') === '1'; },
   set doublePass(v) { localStorage.setItem('double_pass', v ? '1' : '0'); },
   get glossario() { return localStorage.getItem('glossario') || DEFAULT_GLOSSARIO; },
   set glossario(v) { localStorage.setItem('glossario', v); },
 };
+
+function getProvider(model) {
+  if (!model) return null;
+  if (model.startsWith('claude-')) return 'anthropic';
+  if (model.startsWith('gpt-')) return 'openai';
+  return null;
+}
 
 const DEFAULT_GLOSSARIO = `# Glossário (livro de Registro de Imóveis — Comarca de Ferros, MG, 1890–1976)
 
@@ -1219,6 +1251,80 @@ RETORNE APENAS UM JSON neste shape (sem markdown, sem prefixo):
   ]
 }`;
 
+// Entry point: escolhe qual API chamar baseado no nome do modelo
+async function callProvider({ model, imageDataUrl, glossario }) {
+  const provider = getProvider(model);
+  if (provider === 'anthropic') {
+    if (!Config.apiKey) throw new Error('Sem chave Anthropic. Configure no header.');
+    return await callAnthropic({ apiKey: Config.apiKey, model, imageDataUrl, glossario });
+  }
+  if (provider === 'openai') {
+    if (!Config.openaiKey) throw new Error('Sem chave OpenAI. Configure no card Configuração.');
+    return await callOpenAI({ apiKey: Config.openaiKey, model, imageDataUrl, glossario });
+  }
+  throw new Error(`Provider desconhecido para modelo: ${model}`);
+}
+
+const OPENAI_URL = 'https://api.openai.com/v1/chat/completions';
+
+async function callOpenAI({ apiKey, model, imageDataUrl, glossario }) {
+  const body = {
+    model,
+    max_tokens: 4096,
+    response_format: { type: 'json_object' },
+    messages: [
+      { role: 'system', content: SYSTEM_PROMPT + '\n\n---\nGLOSSARIO DE REFERENCIA:\n\n' + glossario },
+      {
+        role: 'user',
+        content: [
+          { type: 'image_url', image_url: { url: imageDataUrl, detail: 'high' } },
+          { type: 'text', text: 'Transcreva a imagem seguindo o pipeline e regras. Retorne APENAS o JSON valido.' }
+        ]
+      }
+    ]
+  };
+
+  const resp = await fetch(OPENAI_URL, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${apiKey}`,
+    },
+    body: JSON.stringify(body)
+  });
+
+  if (!resp.ok) {
+    const errBody = await resp.text();
+    throw new Error(`OpenAI ${resp.status}: ${errBody.slice(0, 300)}`);
+  }
+  const data = await resp.json();
+  const text = data.choices?.[0]?.message?.content || '';
+  const usage = data.usage || {};
+
+  let clean = text.trim();
+  if (clean.startsWith('```')) {
+    clean = clean.replace(/^```[a-zA-Z]*\n?/, '').replace(/\n?```\s*$/, '');
+  }
+  let parsed;
+  try {
+    parsed = JSON.parse(clean);
+  } catch (e) {
+    const match = clean.match(/\{[\s\S]*\}/);
+    if (!match) throw new Error('OpenAI respondeu sem JSON parseavel: ' + clean.slice(0, 200));
+    parsed = JSON.parse(match[0]);
+  }
+  // Mapeia usage do OpenAI pro mesmo schema interno
+  const cached = usage.prompt_tokens_details?.cached_tokens || 0;
+  parsed._usage = {
+    input_tokens: (usage.prompt_tokens || 0) - cached,
+    output_tokens: usage.completion_tokens || 0,
+    cache_creation_input_tokens: 0,  // OpenAI nao distingue write/read
+    cache_read_input_tokens: cached,
+    model_used: model
+  };
+  return parsed;
+}
+
 async function callAnthropic({ apiKey, model, imageDataUrl, glossario }) {
   const m = imageDataUrl.match(/^data:(image\/[a-z]+);base64,(.+)$/);
   if (!m) throw new Error('imagem invalida');
@@ -1288,9 +1394,9 @@ async function callAnthropic({ apiKey, model, imageDataUrl, glossario }) {
 /* =========================================================================
    DOUBLE-PASS + COMPARACAO
 ========================================================================= */
-async function transcribeWithDoublePass({ apiKey, model, imageDataUrl, glossario }) {
-  const r1 = await callAnthropic({ apiKey, model, imageDataUrl, glossario });
-  const r2 = await callAnthropic({ apiKey, model, imageDataUrl, glossario });
+async function transcribeWithDoublePass({ model, imageDataUrl, glossario }) {
+  const r1 = await callProvider({ model, imageDataUrl, glossario });
+  const r2 = await callProvider({ model, imageDataUrl, glossario });
 
   const merged = JSON.parse(JSON.stringify(r1));
   merged.incertezas = merged.incertezas || [];
@@ -1345,9 +1451,13 @@ async function transcribeWithDoublePass({ apiKey, model, imageDataUrl, glossario
 
 // Pricing aproximado por modelo (USD por milhao de tokens).
 const PRICING = {
-  'claude-haiku-4-5-20251001': { in: 1.00, out: 5.00 },
-  'claude-sonnet-4-6':         { in: 3.00, out: 15.00 },
-  'claude-opus-4-7':           { in: 15.00, out: 75.00 }
+  // Anthropic
+  'claude-haiku-4-5-20251001': { in: 1.00, out: 5.00, cache_w: 1.25, cache_r: 0.10 },
+  'claude-sonnet-4-6':         { in: 3.00, out: 15.00, cache_w: 1.25, cache_r: 0.10 },
+  'claude-opus-4-7':           { in: 15.00, out: 75.00, cache_w: 1.25, cache_r: 0.10 },
+  // OpenAI (cache automatico, 50% off no input cached)
+  'gpt-4o-mini':               { in: 0.15, out: 0.60, cache_w: 1.0, cache_r: 0.50 },
+  'gpt-4o':                    { in: 2.50, out: 10.00, cache_w: 1.0, cache_r: 0.50 },
 };
 
 function estimateCostUSD(usage) {
@@ -1356,8 +1466,8 @@ function estimateCostUSD(usage) {
   const p = PRICING[key];
   const inputCost = (
     (usage.input_tokens || 0) * p.in +
-    (usage.cache_creation_input_tokens || 0) * p.in * 1.25 +
-    (usage.cache_read_input_tokens || 0) * p.in * 0.10
+    (usage.cache_creation_input_tokens || 0) * p.in * p.cache_w +
+    (usage.cache_read_input_tokens || 0) * p.in * p.cache_r
   ) / 1_000_000;
   const outputCost = (usage.output_tokens || 0) * p.out / 1_000_000;
   return inputCost + outputCost;
@@ -1382,26 +1492,31 @@ const STRATEGY_THRESHOLDS = {
   max_doubts: 5
 };
 
-async function transcribeWithStrategy({ apiKey, modelChoice, doublePass, imageDataUrl, glossario }) {
-  if (modelChoice === 'auto') {
-    const cheap = await callAnthropic({
-      apiKey, model: 'claude-haiku-4-5-20251001', imageDataUrl, glossario
-    });
+// Estrategias auto disponiveis: define (modelo_barato, modelo_caro) cada uma
+const AUTO_STRATEGIES = {
+  'auto-anthropic': { cheap: 'claude-haiku-4-5-20251001', strong: 'claude-sonnet-4-6', label: 'Haiku→Sonnet' },
+  'auto-openai':    { cheap: 'gpt-4o-mini',               strong: 'gpt-4o',            label: 'GPT-4o-mini→GPT-4o' },
+  'auto-mixed':     { cheap: 'gpt-4o-mini',               strong: 'claude-sonnet-4-6', label: 'GPT-4o-mini→Sonnet' },
+};
+
+async function transcribeWithStrategy({ modelChoice, doublePass, imageDataUrl, glossario }) {
+  const autoCfg = AUTO_STRATEGIES[modelChoice];
+  if (autoCfg) {
+    const cheap = await callProvider({ model: autoCfg.cheap, imageDataUrl, glossario });
     const doubtCount = (cheap.incertezas || []).length;
     const lowScore = (cheap.score_confianca ?? 1) < STRATEGY_THRESHOLDS.score_min;
     const tooManyDoubts = doubtCount > STRATEGY_THRESHOLDS.max_doubts;
 
     if (!lowScore && !tooManyDoubts) {
-      cheap._strategy = 'auto:haiku-only';
+      cheap._strategy = `${modelChoice}:cheap-only (${autoCfg.cheap})`;
       cheap.needs_review = doubtCount > 0;
       return cheap;
     }
 
-    const better = await callAnthropic({
-      apiKey, model: 'claude-sonnet-4-6', imageDataUrl, glossario
-    });
-    better._strategy = `auto:haiku→sonnet (haiku ${Math.round((cheap.score_confianca||0)*100)}%, ${doubtCount} dúvidas)`;
-    better._haiku_attempt = {
+    const better = await callProvider({ model: autoCfg.strong, imageDataUrl, glossario });
+    better._strategy = `${modelChoice}:${autoCfg.label} (cheap ${Math.round((cheap.score_confianca||0)*100)}%, ${doubtCount} dúvidas)`;
+    better._cheap_attempt = {
+      model: autoCfg.cheap,
       score: cheap.score_confianca,
       doubts: doubtCount,
       reason: lowScore ? 'score-baixo' : 'muitas-duvidas'
@@ -1412,10 +1527,10 @@ async function transcribeWithStrategy({ apiKey, modelChoice, doublePass, imageDa
   }
 
   if (doublePass) {
-    return await transcribeWithDoublePass({ apiKey, model: modelChoice, imageDataUrl, glossario });
+    return await transcribeWithDoublePass({ model: modelChoice, imageDataUrl, glossario });
   }
-  const single = await callAnthropic({ apiKey, model: modelChoice, imageDataUrl, glossario });
-  single._strategy = `single:${modelChoice.replace('claude-', '').replace('-20251001', '')}`;
+  const single = await callProvider({ model: modelChoice, imageDataUrl, glossario });
+  single._strategy = `single:${modelChoice}`;
   single.needs_review = (single.incertezas || []).length > 0;
   return single;
 }
@@ -1735,10 +1850,27 @@ async function processNext() {
     console.log('[processNext] ja tem um processando, skip');
     return;
   }
-  // Checa chave ANTES de marcar como processing — evita travar a fila se nao tem key
-  if (!Config.apiKey) {
-    console.warn('[processNext] sem API key. Salve a chave no header.');
-    toast('Configure sua API key no header (campo azul no topo).', 'error');
+  // Checa pelo menos UMA chave (anthropic ou openai), conforme o modelo configurado
+  const provider = getProvider(Config.model) || (AUTO_STRATEGIES[Config.model] ?
+    getProvider(AUTO_STRATEGIES[Config.model].cheap) : null);
+  // Pra auto-mixed precisa de AMBAS as chaves; verifica caso-a-caso
+  if (Config.model === 'auto-mixed') {
+    if (!Config.apiKey || !Config.openaiKey) {
+      console.warn('[processNext] auto-mixed precisa de AMBAS as chaves');
+      toast('"auto-mixed" precisa de chave OpenAI E Anthropic. Configure as duas ou escolha outra estratégia.', 'error');
+      return;
+    }
+  } else if (provider === 'anthropic' && !Config.apiKey) {
+    console.warn('[processNext] sem chave Anthropic');
+    toast('Configure sua chave Anthropic no header (campo azul).', 'error');
+    return;
+  } else if (provider === 'openai' && !Config.openaiKey) {
+    console.warn('[processNext] sem chave OpenAI');
+    toast('Configure sua chave OpenAI no card Configuração.', 'error');
+    return;
+  } else if (!provider && !AUTO_STRATEGIES[Config.model]) {
+    console.warn('[processNext] modelo desconhecido:', Config.model);
+    toast('Modelo desconhecido configurado.', 'error');
     return;
   }
   const all = await dbAll();
@@ -1816,7 +1948,6 @@ async function processDoc(next, allCache) {
     } else {
       console.log(`[processNext] chamando API com modelo=${Config.model}, doublePass=${Config.doublePass}`);
       result = await transcribeWithStrategy({
-        apiKey: Config.apiKey,
         modelChoice: Config.model,
         doublePass: Config.doublePass,
         imageDataUrl: next.image_data_url,
@@ -2065,8 +2196,12 @@ async function renderWork(all) {
   };
   $('#reprocess').onclick = async () => {
     const fromCache = doc.result?._from_cache;
-    const modelHint = Config.model === 'auto'
-      ? 'Haiku ~US$ 0,015 (ou Sonnet ~US$ 0,045 se escalar)'
+    const modelHint =
+      Config.model === 'auto-mixed' ? 'GPT-4o-mini ~US$ 0,003 (ou Sonnet ~US$ 0,045 se escalar)'
+      : Config.model === 'auto-anthropic' ? 'Haiku ~US$ 0,015 (ou Sonnet ~US$ 0,045 se escalar)'
+      : Config.model === 'auto-openai' ? 'GPT-4o-mini ~US$ 0,003 (ou GPT-4o ~US$ 0,02 se escalar)'
+      : Config.model.includes('gpt-4o-mini') ? '~US$ 0,003'
+      : Config.model.includes('gpt-4o') ? '~US$ 0,02'
       : Config.model.includes('haiku') ? '~US$ 0,015'
       : Config.model.includes('opus') ? '~US$ 0,22'
       : '~US$ 0,045';
@@ -2391,7 +2526,25 @@ function bindUI() {
     }
   }
 
-  // Toggle do card de configuração (sem auto-colapsar — agora só nome+modelo+gloss)
+  // OpenAI key (no card Configuracao)
+  const openaiInput = $('#openai-key');
+  if (openaiInput) {
+    openaiInput.value = Config.openaiKey;
+    const saveOpenaiKey = () => {
+      const v = openaiInput.value.trim();
+      if (v === Config.openaiKey) return;
+      Config.openaiKey = v;
+      toast(Config.openaiKey ? 'Chave OpenAI salva ✓' : 'Chave OpenAI removida', 'success');
+      if (Config.openaiKey) setTimeout(processNext, 100);
+    };
+    $('#save-openai-key').onclick = saveOpenaiKey;
+    openaiInput.onblur = saveOpenaiKey;
+    openaiInput.onkeydown = (e) => {
+      if (e.key === 'Enter') { e.preventDefault(); saveOpenaiKey(); openaiInput.blur(); }
+    };
+  }
+
+  // Toggle do card de configuração
   const configCard = $('#config-card');
   const toggleBtn = $('#toggle-config');
   toggleBtn.onclick = () => {
