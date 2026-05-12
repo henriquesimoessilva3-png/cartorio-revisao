@@ -557,8 +557,38 @@
     line-height: 1.7;
     font-family: Georgia, 'Times New Roman', serif;
     font-size: 0.95em;
+    transition: border-color 0.15s, background 0.15s;
   }
   .transcricao-box .transcricao { margin: 0; }
+  .transcricao-box[contenteditable="true"] { cursor: text; }
+  .transcricao-box[contenteditable="true"]:hover {
+    border-color: #ca8a04;
+  }
+  .transcricao-box[contenteditable="true"]:focus {
+    outline: none;
+    border-color: #ca8a04;
+    background: #fffbeb;
+    box-shadow: 0 0 0 3px rgba(202,138,4,0.15);
+  }
+  .editable-hint {
+    display: flex;
+    align-items: center;
+    gap: 0.5em;
+    font-size: 0.8em;
+    color: var(--text-muted);
+    margin: 0.6em 0 0.3em;
+    padding: 0.4em 0.7em;
+    background: var(--bg);
+    border-radius: 6px;
+    border: 1px dashed var(--border-strong);
+  }
+  .editable-hint .save-status {
+    margin-left: auto;
+    font-weight: 600;
+    transition: opacity 0.3s;
+  }
+  .editable-hint .save-status.saving { color: var(--info-text); }
+  .editable-hint .save-status.saved { color: var(--ok-text); }
   .incerto {
     background: #fef3c7;
     padding: 1px 4px;
@@ -1971,7 +2001,11 @@ async function renderWork(all) {
 
       <img class="img-preview" src="${doc.image_data_url}" alt="Imagem original do registro">
 
-      <div class="transcricao-box">${bodyHtml}</div>
+      <div class="editable-hint">
+        <span>✏️ Texto editável — clique e digite. Salva automaticamente.</span>
+        <span class="save-status" id="save-status"></span>
+      </div>
+      <div class="transcricao-box" contenteditable="true" spellcheck="false" data-doc-id="${escapeAttr(doc.id)}" id="editable-corpo">${bodyHtml}</div>
 
       ${renderConfrontantes(r.confrontantes)}
       ${renderSelos(r.selos_fiscais)}
@@ -2007,6 +2041,42 @@ async function renderWork(all) {
   document.querySelectorAll('.transcricao-box .incerto[data-doubt-id]').forEach(el => {
     el.onclick = () => focusDoubt(el.dataset.doubtId);
   });
+
+  // Texto editavel: salva edicoes manuais com debounce
+  const editableBox = document.getElementById('editable-corpo');
+  const saveStatus = document.getElementById('save-status');
+  if (editableBox) {
+    let saveTimer;
+    let lastSavedHtml = editableBox.innerHTML;
+    const debouncedSave = async () => {
+      const newHtml = editableBox.innerHTML;
+      if (newHtml === lastSavedHtml) return;
+      if (saveStatus) { saveStatus.textContent = 'salvando…'; saveStatus.className = 'save-status saving'; }
+      const docId = editableBox.dataset.docId;
+      const currentDoc = await dbGet(docId);
+      if (currentDoc && currentDoc.result) {
+        currentDoc.result.html_corpo = newHtml;
+        currentDoc.result._manually_edited = true;
+        currentDoc.result._edited_at = new Date().toISOString();
+        currentDoc.result._edited_by = localStorage.getItem('reviewer_name') || 'desconhecido';
+        await dbPut(currentDoc);
+        lastSavedHtml = newHtml;
+        if (saveStatus) {
+          saveStatus.textContent = '✓ salvo';
+          saveStatus.className = 'save-status saved';
+          setTimeout(() => { if (saveStatus) saveStatus.textContent = ''; }, 1500);
+        }
+      }
+    };
+    editableBox.addEventListener('input', () => {
+      clearTimeout(saveTimer);
+      saveTimer = setTimeout(debouncedSave, 700);
+    });
+    editableBox.addEventListener('blur', () => {
+      clearTimeout(saveTimer);
+      debouncedSave();
+    });
+  }
 
   // Wire das opções de cada dúvida
   document.querySelectorAll('.doubt-card .doubt-options button').forEach(b => {
