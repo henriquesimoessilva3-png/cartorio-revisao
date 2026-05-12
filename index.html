@@ -308,29 +308,35 @@
   }
   .btn-danger-outline:hover { background: var(--danger-bg); }
 
-  /* ===== Drop zone ===== */
+  /* ===== Drop zone (compacta) ===== */
   .drop-zone {
     display: flex;
-    flex-direction: column;
+    flex-direction: row;
     align-items: center;
     justify-content: center;
-    gap: 0.4em;
-    padding: 2.2em 1.5em;
+    gap: 0.9em;
+    padding: 1em 1.5em;
     border: 2px dashed var(--border-strong);
     border-radius: 10px;
     background: var(--bg);
     cursor: pointer;
     transition: 0.15s all;
-    text-align: center;
+    text-align: left;
   }
   .drop-zone:hover, .drop-zone.dragover {
     border-color: var(--primary);
     background: var(--info-bg);
   }
   .drop-zone input { display: none; }
-  .drop-zone-icon { font-size: 2em; opacity: 0.5; }
-  .drop-zone strong { color: var(--text); font-size: 1em; }
-  .drop-zone-hint { color: var(--text-muted); font-size: 0.85em; }
+  .drop-zone-icon { font-size: 1.7em; opacity: 0.55; line-height: 1; }
+  .drop-zone-text { display: flex; flex-direction: column; gap: 0.15em; }
+  .drop-zone strong { color: var(--text); font-size: 0.95em; }
+  .drop-zone-hint { color: var(--text-muted); font-size: 0.82em; }
+
+  /* docs-split separado do upload-section por linha */
+  .docs-split {
+    border-top: 1px solid var(--border);
+  }
 
   /* ===== Stats ===== */
   .stats-row {
@@ -495,8 +501,21 @@
     font-size: 0.95em;
     text-align: center;
   }
+  .doc-detail-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: 1em;
+    margin-bottom: 1em;
+  }
+  .doc-detail-header-text { flex: 1; min-width: 0; }
+  .doc-detail-actions-top {
+    display: flex;
+    gap: 0.5em;
+    flex-shrink: 0;
+  }
   .doc-detail h3 {
-    margin: 0 0 0.3em;
+    margin: 0 0 0.2em;
     font-size: 1.3em;
     font-weight: 700;
     color: var(--text);
@@ -505,7 +524,6 @@
     font-size: 0.78em;
     color: var(--text-muted);
     font-family: 'SF Mono', Menlo, monospace;
-    margin-bottom: 1em;
   }
   .doc-fields {
     display: grid;
@@ -926,17 +944,25 @@
     </div>
   </section>
 
-  <!-- Card: Enviar documentos -->
+  <!-- Card unico: Documentos (upload + stats + lista + work) -->
   <section class="card">
     <header class="card-header">
-      <h2>1. Enviar documentos</h2>
+      <h2>Documentos</h2>
+      <div class="card-actions">
+        <button class="btn btn-secondary btn-small" id="export-zip" type="button">Baixar aprovados (ZIP)</button>
+        <button class="btn btn-secondary btn-small btn-danger-outline" id="clear-all" type="button">Limpar tudo</button>
+      </div>
     </header>
-    <div class="card-body">
+
+    <!-- Upload + stats -->
+    <div class="card-body upload-section">
       <label class="drop-zone" id="drop-zone">
         <input type="file" id="file-input" accept="image/*,application/pdf" multiple>
-        <div class="drop-zone-icon">📄</div>
-        <strong>Arraste imagens ou PDFs aqui</strong>
-        <span class="drop-zone-hint">ou clique para escolher arquivos. PDFs com várias páginas são separados automaticamente.</span>
+        <span class="drop-zone-icon">📄</span>
+        <span class="drop-zone-text">
+          <strong>Arraste imagens ou PDFs aqui</strong>
+          <span class="drop-zone-hint">ou clique pra escolher · PDFs multi-página são separados automaticamente</span>
+        </span>
       </label>
       <div class="stats-row">
         <div class="stat stat-queued">
@@ -970,20 +996,11 @@
         <span>economizado: <strong id="cache-saved">US$ 0,00</strong></span>
       </div>
     </div>
-  </section>
 
-  <!-- Card: Documentos -->
-  <section class="card">
-    <header class="card-header">
-      <h2>2. Documentos</h2>
-      <div class="card-actions">
-        <button class="btn btn-secondary btn-small" id="export-zip" type="button">Baixar aprovados (ZIP)</button>
-        <button class="btn btn-secondary btn-small btn-danger-outline" id="clear-all" type="button">Limpar tudo</button>
-      </div>
-    </header>
-    <div class="card-body docs-split">
+    <!-- Lista + work area -->
+    <div class="docs-split">
       <ul class="docs-list" id="docs-list">
-        <li class="docs-empty">Nenhum documento ainda.</li>
+        <li class="docs-empty">Nenhum documento ainda. Arraste arquivos no campo acima.</li>
       </ul>
       <div class="work-area" id="work">
         <div class="work-empty">
@@ -1993,8 +2010,15 @@ async function renderWork(all) {
 
   work.innerHTML = `
     <article class="doc-detail">
-      <h3>Registro nº ${escapeHtml(r.numero_registro || '?')}</h3>
-      <div class="doc-stem">${escapeHtml(doc.stem)}</div>
+      <div class="doc-detail-header">
+        <div class="doc-detail-header-text">
+          <h3>Registro nº ${escapeHtml(r.numero_registro || '?')}</h3>
+          <div class="doc-stem">${escapeHtml(doc.stem)}</div>
+        </div>
+        <div class="doc-detail-actions-top">
+          <button class="btn btn-secondary btn-small" id="reprocess" type="button" title="Reprocessar este documento (ignora cache)">↻ Reprocessar</button>
+        </div>
+      </div>
 
       <div class="doc-meta-row">
         <span class="pill"><strong>Score:</strong> ${Math.round((r.score_confianca||0)*100)}%</span>
@@ -2024,7 +2048,6 @@ async function renderWork(all) {
         <span class="resolved-stats ${allResolved ? 'complete' : ''}">
           ${allResolved ? '✓ Pronto pra aprovar' : `Faltam ${totalDoubts - resolvedDoubts} de ${totalDoubts} dúvidas`}
         </span>
-        <button class="btn btn-secondary" id="reprocess" type="button">Reprocessar</button>
         <button class="btn btn-success" id="approve-btn" ${allResolved ? '' : 'disabled'} type="button">
           ${doc.status === 'approved' ? '✓ Aprovado' : 'Aprovar documento'}
         </button>
