@@ -321,6 +321,21 @@
     .stats-row { grid-template-columns: repeat(2, 1fr); }
   }
 
+  .cache-info {
+    margin-top: 0.8em;
+    padding: 0.6em 0.9em;
+    background: var(--ok-bg);
+    border: 1px solid var(--ok-border);
+    border-radius: 6px;
+    font-size: 0.82em;
+    color: var(--ok-text);
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.6em;
+    align-items: center;
+  }
+  .cache-info strong { color: var(--ok-text); font-weight: 700; }
+
   /* ===== Documentos: lista + área de trabalho ===== */
   .docs-split {
     display: grid;
@@ -449,6 +464,9 @@
     border: 1px solid var(--border);
   }
   .doc-meta-row .pill strong { color: var(--text); font-weight: 600; }
+  .doc-meta-row .pill-cache { background: var(--ok-bg); border-color: var(--ok-border); color: var(--ok-text); }
+  .doc-meta-row .pill-local { background: var(--warn-bg); border-color: var(--warn-border); color: var(--warn-text); }
+  .doc-meta-row .pill-cross { background: var(--info-bg); border-color: #93c5fd; color: var(--info-text); }
   .img-preview {
     width: 100%;
     max-height: 360px;
@@ -780,6 +798,15 @@
           <strong id="cost-total">US$ 0,0000</strong>
         </div>
       </div>
+      <div class="cache-info" id="cache-info" style="display:none;">
+        <span><strong id="cache-hits">0</strong> cache hits</span>
+        <span>·</span>
+        <span><strong id="local-doubts">0</strong> dúvidas locais (grátis)</span>
+        <span>·</span>
+        <span><strong id="cross-matches">0</strong> matches cross-doc</span>
+        <span>·</span>
+        <span>economizado: <strong id="cache-saved">US$ 0,00</strong></span>
+      </div>
     </div>
   </section>
 
@@ -813,7 +840,7 @@
    STORAGE LAYER — IndexedDB. Encapsulado para troca futura por API remota.
 ========================================================================= */
 const DB_NAME = 'cartorio-revisao';
-const DB_VERSION = 1;
+const DB_VERSION = 2;
 
 function openDB() {
   return new Promise((resolve, reject) => {
@@ -824,9 +851,34 @@ function openDB() {
         const s = db.createObjectStore('docs', { keyPath: 'id' });
         s.createIndex('status', 'status');
       }
+      if (!db.objectStoreNames.contains('cache')) {
+        // Cache de transcricoes por hash da imagem.
+        // Evita refazer chamada quando mesma imagem entra de novo.
+        db.createObjectStore('cache', { keyPath: 'hash' });
+      }
     };
     req.onsuccess = e => resolve(e.target.result);
     req.onerror = e => reject(e.target.error);
+  });
+}
+
+async function cacheGet(hash) {
+  const db = await openDB();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction('cache', 'readonly');
+    const req = tx.objectStore('cache').get(hash);
+    req.onsuccess = () => resolve(req.result);
+    req.onerror = e => reject(e.target.error);
+  });
+}
+
+async function cachePut(hash, result, glossarioHash) {
+  const db = await openDB();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction('cache', 'readwrite');
+    tx.objectStore('cache').put({ hash, result, glossarioHash, cached_at: Date.now() });
+    tx.oncomplete = () => resolve();
+    tx.onerror = e => reject(e.target.error);
   });
 }
 
@@ -1170,6 +1222,219 @@ async function transcribeWithStrategy({ apiKey, modelChoice, doublePass, imageDa
 }
 
 /* =========================================================================
+   PRE/POS-PROCESSAMENTO LOCAL (sem custo de API)
+========================================================================= */
+
+// --- Hash SHA-256 de imagem (data URL) ---
+async function hashDataUrl(dataUrl) {
+  const b64 = dataUrl.split(',')[1] || '';
+  const bytes = Uint8Array.from(atob(b64), c => c.charCodeAt(0));
+  const buf = await crypto.subtle.digest('SHA-256', bytes);
+  return Array.from(new Uint8Array(buf)).map(b => b.toString(16).padStart(2,'0')).join('');
+}
+
+async function hashString(s) {
+  const enc = new TextEncoder().encode(s);
+  const buf = await crypto.subtle.digest('SHA-256', enc);
+  return Array.from(new Uint8Array(buf)).slice(0, 8).map(b => b.toString(16).padStart(2,'0')).join('');
+}
+
+// --- Pre-flight check da imagem ---
+async function preflightCheckImage(dataUrl) {
+  const img = await loadImage(dataUrl);
+  const { width, height } = img;
+  if (width < 200 || height < 200) {
+    return { ok: false, reason: `imagem muito pequena (${width}x${height} px). Esperado >= 200x200.` };
+  }
+  if (width > 8000 || height > 8000) {
+    return { ok: false, reason: `imagem muito grande (${width}x${height} px). Esperado <= 8000x8000.` };
+  }
+  const aspect = width / height;
+  if (aspect < 0.2 || aspect > 5) {
+    return { ok: false, reason: `proporção fora do esperado (${aspect.toFixed(2)}). Imagem provavelmente rotacionada errado.` };
+  }
+  // Variância de pixels — detecta imagens em branco ou uniformes
+  const variance = await computeImageVariance(img);
+  if (variance < 80) {
+    return { ok: false, reason: `imagem aparentemente vazia ou uniforme (variância ${variance.toFixed(0)}). Provavelmente página em branco.` };
+  }
+  return { ok: true, width, height, variance };
+}
+
+function loadImage(dataUrl) {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    img.onload = () => resolve(img);
+    img.onerror = () => reject(new Error('falha ao carregar imagem'));
+    img.src = dataUrl;
+  });
+}
+
+async function computeImageVariance(img) {
+  // Sample down pra performance: max 200x200
+  const w = Math.min(200, img.width);
+  const h = Math.min(200, img.height);
+  const canvas = document.createElement('canvas');
+  canvas.width = w; canvas.height = h;
+  const ctx = canvas.getContext('2d');
+  ctx.drawImage(img, 0, 0, w, h);
+  const data = ctx.getImageData(0, 0, w, h).data;
+  let sum = 0, sumSq = 0, n = 0;
+  for (let i = 0; i < data.length; i += 4) {
+    // luminância aproximada
+    const lum = 0.3 * data[i] + 0.59 * data[i+1] + 0.11 * data[i+2];
+    sum += lum;
+    sumSq += lum * lum;
+    n++;
+  }
+  const mean = sum / n;
+  return sumSq / n - mean * mean;
+}
+
+// --- Validação léxica pós-transcrição ---
+// Palavras pt-BR antigas/regionais conhecidas (não devem ser flagadas).
+const KNOWN_OLD_PT = new Set([
+  'commum','districto','districtos','municipio','corego','coregos','transcricao','transcricoes',
+  'publica','pharmacia','sciencia','philosophia','theresa','mattheus','anna','joanna',
+  'sancto','sanctas','sanctos','director','directora','hontem','semelhante','dito','ditto',
+  'fere','testato','testada','centiare','centiares','ares','hectares','litros','alqueire',
+  'aquisicoes','transmissoes','averbacao','averbacoes','escrivao','escripturas','escriptura',
+  'conego','ribeirao','espigao','cachoeira','divisa','divisas','confrontante','confrontantes',
+  'herdeiro','herdeiros','herdeira','herdeiras','adquirente','transmitente','outorgante',
+  'compra','venda','heranca','dote','permuta','penhor','hipoteca','foro','aforamento',
+  'fazenda','fazendeiro','sitiante','lavrador','proprietario','proprietarios',
+  'ferros','mesquita','paraiso','santana','minas','gerais','brasil',
+  'belgo','mineira','siderurgica','acesita','companhia','cia'
+]);
+
+function extractWords(html) {
+  // Tira tags, pega palavras com letras (incluindo acentos)
+  const text = html.replace(/<[^>]*>/g, ' ').replace(/&[a-z]+;/gi, ' ');
+  return (text.match(/[A-Za-zÀ-ÿ]{4,}/g) || []);
+}
+
+function looksWeird(word) {
+  if (word.length < 4) return false;
+  // 4+ consoantes seguidas (excluindo y)
+  if (/[bcdfghjklmnpqrstvwxzBCDFGHJKLMNPQRSTVWXZ]{4,}/.test(word)) return true;
+  // letra repetida 3+ vezes
+  if (/(.)\1{2,}/.test(word)) return true;
+  // alternância maiúscula/minúscula no meio (CamelCase suspeito em meio de palavra)
+  if (/[a-z][A-Z][a-z]/.test(word)) return true;
+  return false;
+}
+
+function lexicalValidate(result, glossarioText) {
+  if (!result || !result.html_corpo) return result;
+  // Parse glossário: pega palavras de 4+ letras
+  const glossWords = new Set(extractWords(glossarioText).map(w => w.toLowerCase()));
+  // Palavras já marcadas como incertas pela IA — extrai
+  const existingDoubts = new Set();
+  for (const d of (result.incertezas || [])) {
+    for (const w of extractWords(d.trecho || '')) {
+      existingDoubts.add(w.toLowerCase());
+    }
+  }
+  const words = extractWords(result.html_corpo);
+  const flagged = new Map();  // word -> count
+  for (const w of words) {
+    const lower = w.toLowerCase();
+    if (existingDoubts.has(lower)) continue;
+    if (glossWords.has(lower)) continue;
+    if (KNOWN_OLD_PT.has(lower)) continue;
+    if (!looksWeird(w)) continue;
+    flagged.set(w, (flagged.get(w) || 0) + 1);
+  }
+  if (flagged.size === 0) return result;
+  // Adiciona como dúvidas locais (não custou nada)
+  result.incertezas = result.incertezas || [];
+  let i = 1;
+  for (const [word, count] of flagged) {
+    result.incertezas.push({
+      id: `local${i++}`,
+      trecho: word,
+      leitura_principal: word,
+      leituras_alternativas: [],
+      confianca: 'baixa',
+      justificativa: `[validação local] palavra com padrão suspeito (${count}x) e não consta no glossário nem em palavras pt-BR antigas conhecidas. Verifique manualmente.`,
+      _local_validation: true
+    });
+  }
+  result._local_validation_flagged = flagged.size;
+  if ((result.incertezas || []).length > 0) result.needs_review = true;
+  return result;
+}
+
+// --- Cross-document inference (sem custo) ---
+function levenshtein(a, b) {
+  if (a.length === 0) return b.length;
+  if (b.length === 0) return a.length;
+  if (Math.abs(a.length - b.length) > 4) return 99;  // shortcut
+  const m = a.length, n = b.length;
+  let prev = Array.from({length: n+1}, (_, i) => i);
+  for (let i = 1; i <= m; i++) {
+    const curr = [i];
+    for (let j = 1; j <= n; j++) {
+      curr[j] = Math.min(
+        prev[j] + 1,
+        curr[j-1] + 1,
+        prev[j-1] + (a[i-1] === b[j-1] ? 0 : 1)
+      );
+    }
+    prev = curr;
+  }
+  return prev[n];
+}
+
+function crossDocInference(currentResult, otherDocs) {
+  if (!currentResult) return currentResult;
+  // Coleta nomes/topônimos conhecidos de docs aprovados
+  const knownNames = new Set();
+  for (const d of otherDocs) {
+    if (d.status !== 'approved') continue;
+    for (const c of (d.result?.confrontantes || [])) {
+      if (c.nome && c.nome.length > 4) knownNames.add(c.nome);
+    }
+    if (d.result?.campos_estruturados?.adquirente)
+      knownNames.add(d.result.campos_estruturados.adquirente);
+  }
+  if (knownNames.size === 0) return currentResult;
+
+  // Pra cada confrontante do doc atual, ver se há um known similar
+  const matches = [];
+  for (const c of (currentResult.confrontantes || [])) {
+    if (!c.nome || c.nome.length < 6) continue;
+    if (knownNames.has(c.nome)) continue;  // já bate exato
+    for (const known of knownNames) {
+      const dist = levenshtein(c.nome.toLowerCase(), known.toLowerCase());
+      const maxDist = Math.max(1, Math.floor(Math.min(c.nome.length, known.length) * 0.2));
+      if (dist > 0 && dist <= maxDist) {
+        matches.push({ atual: c.nome, sugerido: known, distancia: dist });
+        break;
+      }
+    }
+  }
+  if (matches.length > 0) {
+    currentResult.incertezas = currentResult.incertezas || [];
+    let i = 1;
+    for (const m of matches) {
+      currentResult.incertezas.push({
+        id: `cross${i++}`,
+        trecho: m.atual,
+        leitura_principal: m.atual,
+        leituras_alternativas: [m.sugerido],
+        confianca: 'media',
+        justificativa: `[cross-doc] "${m.atual}" se parece com "${m.sugerido}" já aprovado em outro documento (distância ${m.distancia}). Pode ser variação grafia ou erro de leitura.`,
+        _cross_doc: true
+      });
+    }
+    currentResult._cross_doc_matches = matches.length;
+    if ((currentResult.incertezas || []).length > 0) currentResult.needs_review = true;
+  }
+  return currentResult;
+}
+
+/* =========================================================================
    FILE INTAKE — converte PDF/img em data URLs
 ========================================================================= */
 async function fileToImageDataUrls(file) {
@@ -1259,22 +1524,64 @@ async function enqueueFile(file) {
 
 async function processNext() {
   if (State.processing) return;
-  if (!Config.apiKey) { return; }  // sem chave, não tenta
   const all = await dbAll();
   const next = all.find(d => d.status === 'queued');
   if (!next) return;
+
   State.processing = true;
   next.status = 'processing';
   await dbPut(next);
   await render();
+
   try {
-    const result = await transcribeWithStrategy({
-      apiKey: Config.apiKey,
-      modelChoice: Config.model,
-      doublePass: Config.doublePass,
-      imageDataUrl: next.image_data_url,
-      glossario: Config.glossario
-    });
+    // ===== Etapa 1: pre-flight check da imagem (grátis) =====
+    const preflight = await preflightCheckImage(next.image_data_url);
+    if (!preflight.ok) {
+      throw new Error('Pre-flight reprovou: ' + preflight.reason);
+    }
+    next._preflight = preflight;
+
+    // ===== Etapa 2: hash + cache check (grátis) =====
+    const imgHash = await hashDataUrl(next.image_data_url);
+    const glossarioHash = await hashString(Config.glossario);
+    next._image_hash = imgHash;
+    const cached = await cacheGet(imgHash);
+    let result;
+    if (cached && cached.glossarioHash === glossarioHash) {
+      // Cache hit! Não paga API.
+      result = JSON.parse(JSON.stringify(cached.result));
+      result._from_cache = true;
+      result._strategy = (result._strategy || 'unknown') + ' (cache hit — US$ 0,00)';
+      // Zerar usage do cache pra não contar custo de novo
+      if (result._usage) {
+        result._usage = { input_tokens: 0, output_tokens: 0,
+          cache_creation_input_tokens: 0, cache_read_input_tokens: 0,
+          model_used: result._usage.model_used };
+      }
+      toast(`Cache hit em ${next.stem} — economizou uma chamada de API ✓`, 'success');
+    } else {
+      // ===== Etapa 3: precisa chamar API =====
+      if (!Config.apiKey) {
+        throw new Error('Sem API key. Configure no card de Configuração no topo.');
+      }
+      result = await transcribeWithStrategy({
+        apiKey: Config.apiKey,
+        modelChoice: Config.model,
+        doublePass: Config.doublePass,
+        imageDataUrl: next.image_data_url,
+        glossario: Config.glossario
+      });
+      // Salva no cache pra reuso futuro
+      await cachePut(imgHash, result, glossarioHash);
+    }
+
+    // ===== Etapa 4: validação léxica local (grátis) =====
+    result = lexicalValidate(result, Config.glossario);
+
+    // ===== Etapa 5: cross-document inference (grátis) =====
+    const otherDocs = all.filter(d => d.id !== next.id);
+    result = crossDocInference(result, otherDocs);
+
     next.result = result;
     next.status = result.needs_review ? 'needs-review' : 'approved';
     if (!next.result.needs_review) {
@@ -1311,6 +1618,18 @@ function renderQueue(all) {
   $('#cnt-approved').textContent = all.filter(d => d.status === 'approved').length;
   const totalCost = all.reduce((sum, d) => sum + estimateCostUSD(d.result?._usage), 0);
   $('#cost-total').textContent = 'US$ ' + totalCost.toFixed(4);
+
+  // Cache + local validation summary
+  const cacheHits = all.filter(d => d.result?._from_cache).length;
+  const localDoubts = all.reduce((s, d) => s + (d.result?._local_validation_flagged || 0), 0);
+  const crossMatches = all.reduce((s, d) => s + (d.result?._cross_doc_matches || 0), 0);
+  // Estimativa do que cache hits economizaram: assumindo ~$0.045/chamada (Sonnet single-pass)
+  const cacheSaved = cacheHits * 0.045;
+  $('#cache-hits').textContent = cacheHits;
+  $('#local-doubts').textContent = localDoubts;
+  $('#cross-matches').textContent = crossMatches;
+  $('#cache-saved').textContent = 'US$ ' + cacheSaved.toFixed(4);
+  $('#cache-info').style.display = (cacheHits + localDoubts + crossMatches) > 0 ? 'flex' : 'none';
 
   const list = $('#docs-list');
   list.innerHTML = '';
@@ -1428,9 +1747,11 @@ async function renderWork(all) {
 
       <div class="doc-meta-row">
         <span class="pill"><strong>Score:</strong> ${Math.round((r.score_confianca||0)*100)}%</span>
-        <span class="pill"><strong>Custo:</strong> US$ ${cost.toFixed(4)}</span>
+        <span class="pill ${r._from_cache ? 'pill-cache' : ''}"><strong>Custo:</strong> US$ ${cost.toFixed(4)}${r._from_cache ? ' 💾 cache' : ''}</span>
         <span class="pill"><strong>Estratégia:</strong> ${escapeHtml(r._strategy || '?')}</span>
         <span class="pill"><strong>Dúvidas:</strong> ${resolvedDoubts}/${totalDoubts}</span>
+        ${r._local_validation_flagged ? `<span class="pill pill-local"><strong>+${r._local_validation_flagged}</strong> dúvidas locais (grátis)</span>` : ''}
+        ${r._cross_doc_matches ? `<span class="pill pill-cross"><strong>+${r._cross_doc_matches}</strong> match cross-doc</span>` : ''}
       </div>
 
       <div class="doc-fields">${fieldsHtml}</div>
