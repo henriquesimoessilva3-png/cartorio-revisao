@@ -1693,17 +1693,44 @@ async function processNext() {
     return;
   }
   const all = await dbAll();
-  const next = all.find(d => d.status === 'queued');
+  // Ordena por added_at (asc) para respeitar prioridade — added_at=0 (forçado) fica primeiro
+  const queued = all.filter(d => d.status === 'queued').sort((a, b) => a.added_at - b.added_at);
+  const next = queued[0];
   if (!next) {
     console.log('[processNext] sem documentos na fila');
     return;
   }
+  await processDoc(next, all);
+}
 
+async function processSpecific(docId) {
+  // Chamado quando user clica "Processar agora" num doc específico.
+  // Em vez de bypass do controle de concorrencia, marca este doc como prioritário.
+  const doc = await dbGet(docId);
+  if (!doc) return;
+  if (State.processing) {
+    // Marca como próximo na fila e mostra mensagem
+    doc.added_at = 0;
+    if (doc.status !== 'queued') doc.status = 'queued';
+    await dbPut(doc);
+    await render();
+    toast('Já tem um documento processando. Este foi marcado como próximo da fila.', '');
+    return;
+  }
+  // Não tem nada processando — força este como o próximo
+  doc.added_at = 0;
+  if (doc.status !== 'queued') doc.status = 'queued';
+  await dbPut(doc);
+  processNext();
+}
+
+async function processDoc(next, allCache) {
   State.processing = true;
   next.status = 'processing';
   await dbPut(next);
   await render();
-  console.log(`[processNext] iniciando ${next.stem}`);
+  const all = allCache || await dbAll();
+  console.log(`[processDoc] iniciando ${next.stem}`);
 
   try {
     // ===== Etapa 1: pre-flight check da imagem (grátis) =====
@@ -1874,10 +1901,10 @@ async function renderWork(all) {
         <div class="doc-queued">
           <p>Aguardando processamento.</p>
           <img class="img-preview" src="${doc.image_data_url}" alt="">
-          <button class="btn btn-primary" id="force-process" type="button">Processar agora</button>
+          <button class="btn btn-primary" id="force-process" type="button">Processar este agora</button>
         </div>
       </div>`;
-    $('#force-process').onclick = () => { State.processing = false; processNext(); };
+    $('#force-process').onclick = () => processSpecific(doc.id);
     return;
   }
   if (doc.status === 'processing') {
@@ -2305,9 +2332,30 @@ function bindUI() {
 /* =========================================================================
    BOOT
 ========================================================================= */
+async function resetZombieProcessing() {
+  // Se a pagina foi fechada no meio de um processamento, docs ficam presos em 'processing'.
+  // Volta pra 'queued' no boot pra poder reprocessar.
+  const all = await dbAll();
+  let reset = 0;
+  for (const d of all) {
+    if (d.status === 'processing') {
+      console.log(`[boot] resetando doc zumbi em processing: ${d.stem}`);
+      d.status = 'queued';
+      await dbPut(d);
+      reset++;
+    }
+  }
+  State.processing = false;
+  if (reset > 0) {
+    toast(`${reset} doc(s) que tinham travado em "processando" voltaram pra fila.`, '');
+  }
+}
+
 bindUI();
-render();
-setTimeout(processNext, 500);
+resetZombieProcessing().then(() => {
+  render();
+  setTimeout(processNext, 500);
+});
 </script>
 </body>
 </html>
