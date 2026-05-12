@@ -1290,24 +1290,50 @@ RETORNE APENAS UM JSON neste shape (sem markdown, sem prefixo):
   ]
 }`;
 
-// Entry point: escolhe qual API chamar baseado no nome do modelo
+// Retry automatico com backoff exponencial. Pega erros transientes
+// (429 rate limit, 503 overloaded, 502 bad gateway, 504 timeout) e tenta de novo.
+async function withRetry(fn, label) {
+  const delays = [2000, 5000, 12000];  // 2s, 5s, 12s
+  let lastErr;
+  for (let attempt = 0; attempt <= delays.length; attempt++) {
+    try {
+      return await fn();
+    } catch (e) {
+      lastErr = e;
+      const msg = String(e.message || e);
+      const retriable = /\b(429|503|502|504)\b/.test(msg)
+        || /overloaded|rate[\s-]?limit|unavailable|high demand|temporariamente|timeout/i.test(msg);
+      if (!retriable || attempt >= delays.length) {
+        throw e;
+      }
+      const delay = delays[attempt];
+      const shortMsg = msg.length > 100 ? msg.slice(0, 100) + '…' : msg;
+      console.warn(`[retry] ${label} falhou: ${shortMsg}. Tentando de novo em ${delay/1000}s (${attempt+1}/${delays.length}).`);
+      toast(`${label} sobrecarregado. Esperando ${delay/1000}s e tentando de novo (${attempt+1}/${delays.length})…`, '');
+      await new Promise(r => setTimeout(r, delay));
+    }
+  }
+  throw lastErr;
+}
+
+// Entry point: escolhe qual API chamar baseado no nome do modelo + retry automatico
 async function callProvider({ model, imageDataUrl, glossario }) {
   const provider = getProvider(model);
   if (provider === 'anthropic') {
     if (!Config.apiKey) throw new Error('Sem chave Anthropic. Configure no header.');
-    return await callAnthropic({ apiKey: Config.apiKey, model, imageDataUrl, glossario });
+    return await withRetry(() => callAnthropic({ apiKey: Config.apiKey, model, imageDataUrl, glossario }), `Anthropic ${model}`);
   }
   if (provider === 'openai') {
     if (!Config.openaiKey) throw new Error('Sem chave OpenAI. Configure no card Configuração.');
-    return await callOpenAI({ apiKey: Config.openaiKey, model, imageDataUrl, glossario });
+    return await withRetry(() => callOpenAI({ apiKey: Config.openaiKey, model, imageDataUrl, glossario }), `OpenAI ${model}`);
   }
   if (provider === 'gemini') {
     if (!Config.geminiKey) throw new Error('Sem chave Gemini. Configure no card Configuração.');
-    return await callGemini({ apiKey: Config.geminiKey, model, imageDataUrl, glossario });
+    return await withRetry(() => callGemini({ apiKey: Config.geminiKey, model, imageDataUrl, glossario }), `Gemini ${model}`);
   }
   if (provider === 'openrouter') {
     if (!Config.openrouterKey) throw new Error('Sem chave OpenRouter. Configure no card Configuração.');
-    return await callOpenRouter({ apiKey: Config.openrouterKey, model, imageDataUrl, glossario });
+    return await withRetry(() => callOpenRouter({ apiKey: Config.openrouterKey, model, imageDataUrl, glossario }), `OpenRouter ${model}`);
   }
   throw new Error(`Provider desconhecido para modelo: ${model}`);
 }
@@ -2153,9 +2179,16 @@ async function processDoc(next, allCache) {
   } catch (e) {
     console.error(`[processNext] erro em ${next.stem}:`, e);
     next.status = 'error';
-    next.error = e.message;
+    // Mensagem amigavel pra erros comuns
+    let friendly = e.message;
+    if (/503|overloaded|unavailable|high demand/i.test(e.message)) {
+      friendly = `${e.message}\n\nDica: o provider está sobrecarregado. Tente:\n• Esperar uns minutos e clicar Reprocessar\n• Trocar pra outro modelo (Gemini 2.5 Flash, OpenRouter Qwen, ou um pago)`;
+    } else if (/429|rate.?limit/i.test(e.message)) {
+      friendly = `${e.message}\n\nDica: você atingiu o limite de requisições do free tier. Espere alguns minutos ou troque pra outro provider.`;
+    }
+    next.error = friendly;
     await dbPut(next);
-    toast(`Erro em ${next.stem}: ${e.message}`, 'error');
+    toast(`Erro em ${next.stem}: ${e.message.slice(0, 100)}`, 'error');
   } finally {
     State.processing = false;
     await render();
