@@ -1686,6 +1686,8 @@ async function pdfToImages(file) {
 const State = {
   selected: null,
   processing: false,
+  // IDs de docs que devem ignorar o cache na proxima execucao (force reprocess)
+  bypassCacheIds: new Set(),
 };
 
 async function enqueueFile(file) {
@@ -1775,7 +1777,13 @@ async function processDoc(next, allCache) {
     const imgHash = await hashDataUrl(next.image_data_url);
     const glossarioHash = await hashString(Config.glossario);
     next._image_hash = imgHash;
-    const cached = await cacheGet(imgHash);
+    // Bypass de cache solicitado (clicou em Reprocessar manualmente)
+    const bypassCache = State.bypassCacheIds.has(next.id);
+    if (bypassCache) {
+      State.bypassCacheIds.delete(next.id);
+      console.log(`[processDoc] bypass cache solicitado pra ${next.stem}`);
+    }
+    const cached = bypassCache ? null : await cacheGet(imgHash);
     let result;
     if (cached && cached.glossarioHash === glossarioHash) {
       console.log(`[processNext] cache hit pra ${imgHash.slice(0,12)}`);
@@ -2033,8 +2041,44 @@ async function renderWork(all) {
     render();
   };
   $('#reprocess').onclick = async () => {
-    doc.status = 'queued'; doc.result = null; doc.approvals = {};
-    await dbPut(doc); render(); processNext();
+    const fromCache = doc.result?._from_cache;
+    const modelHint = Config.model === 'auto'
+      ? 'Haiku ~US$ 0,015 (ou Sonnet ~US$ 0,045 se escalar)'
+      : Config.model.includes('haiku') ? '~US$ 0,015'
+      : Config.model.includes('opus') ? '~US$ 0,22'
+      : '~US$ 0,045';
+    const passInfo = Config.doublePass ? ' x 2 (double-pass)' : '';
+
+    let msg;
+    if (fromCache) {
+      msg = `Reprocessar "${doc.stem}"?\n\n` +
+            `Atenção: este documento veio do CACHE local (custo zero anterior).\n` +
+            `Reprocessar vai IGNORAR o cache e fazer uma nova chamada à API.\n\n` +
+            `Custo estimado: ${modelHint}${passInfo}\n\n` +
+            `As dúvidas já resolvidas serão perdidas.`;
+    } else {
+      msg = `Reprocessar "${doc.stem}"?\n\n` +
+            `Vai fazer uma nova chamada à API (ignorando o cache).\n` +
+            `Custo estimado: ${modelHint}${passInfo}\n\n` +
+            `As dúvidas já resolvidas serão perdidas.`;
+    }
+
+    if (!confirm(msg)) return;
+
+    // Marca este doc pra bypass de cache na proxima execucao
+    State.bypassCacheIds.add(doc.id);
+
+    doc.status = 'queued';
+    doc.result = null;
+    doc.approvals = {};
+    doc.added_at = 0;  // prioritário
+    await dbPut(doc);
+    await render();
+    if (State.processing) {
+      toast('Já tem outro doc processando. Este vai ser o próximo.', '');
+    } else {
+      processNext();
+    }
   };
 
   // Wire doubt clicks no texto
