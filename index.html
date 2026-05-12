@@ -197,11 +197,15 @@
   <input type="text" id="reviewer-name" placeholder="seu nome (revisor)" size="20"
          style="font:inherit;padding:0.35em 0.6em;border:1px solid var(--border);border-radius:4px;background:var(--bg);">
   <div class="spacer"></div>
-  <select id="model">
-    <option value="claude-sonnet-4-6">claude-sonnet-4-6</option>
-    <option value="claude-opus-4-7">claude-opus-4-7 (mais caro/preciso)</option>
-    <option value="claude-haiku-4-5-20251001">claude-haiku-4-5 (mais barato/rápido)</option>
+  <select id="model" title="Estratégia de modelo">
+    <option value="auto">auto (Haiku → Sonnet se difícil) ★</option>
+    <option value="claude-haiku-4-5-20251001">Haiku 4.5 (mais barato)</option>
+    <option value="claude-sonnet-4-6">Sonnet 4.6</option>
+    <option value="claude-opus-4-7">Opus 4.7 (caro/preciso)</option>
   </select>
+  <label style="font-size:0.85em;color:var(--muted)" title="2 leituras independentes — custa ~2x">
+    <input type="checkbox" id="double-pass"> double-pass
+  </label>
   <label style="font-size:0.85em;color:var(--muted)">
     <input type="checkbox" id="auto-process" checked> auto-processar fila
   </label>
@@ -225,6 +229,9 @@
       <span style="background:var(--accent-bg);color:var(--accent)">proc: <strong id="cnt-processing">0</strong></span>
       <span style="background:var(--doubt-bg);color:var(--doubt)">dúvida: <strong id="cnt-needs">0</strong></span>
       <span style="background:var(--ok-bg);color:var(--ok)">ok: <strong id="cnt-approved">0</strong></span>
+    </div>
+    <div style="font-size:0.78em;color:var(--muted);margin-bottom:0.8em;padding:0.4em 0.5em;background:var(--bg);border-radius:3px;">
+      Custo acumulado: <strong id="cost-total">US$ 0,0000</strong>
     </div>
 
     <h2>Documentos</h2>
@@ -339,8 +346,10 @@ async function dbClear() {
 const Config = {
   get apiKey() { return localStorage.getItem('anthropic_key') || ''; },
   set apiKey(v) { v ? localStorage.setItem('anthropic_key', v) : localStorage.removeItem('anthropic_key'); },
-  get model() { return localStorage.getItem('model') || 'claude-sonnet-4-6'; },
+  get model() { return localStorage.getItem('model') || 'auto'; },
   set model(v) { localStorage.setItem('model', v); },
+  get doublePass() { return localStorage.getItem('double_pass') === '1'; },
+  set doublePass(v) { localStorage.setItem('double_pass', v ? '1' : '0'); },
   get glossario() { return localStorage.getItem('glossario') || DEFAULT_GLOSSARIO; },
   set glossario(v) { localStorage.setItem('glossario', v); },
 };
@@ -435,15 +444,24 @@ async function callAnthropic({ apiKey, model, imageDataUrl, glossario }) {
   if (!m) throw new Error('imagem invalida');
   const [, mediaType, b64] = m;
 
+  // System+glossario num bloco unico com cache_control (TTL 5min).
+  // Beneficio: chamadas repetidas em sequencia (double-pass, fila) lem do cache
+  // a 10% do custo normal, em vez de pagar 100% pelos ~3600 tokens repetidos.
   const body = {
     model,
     max_tokens: 4096,
-    system: SYSTEM_PROMPT,
+    system: [
+      {
+        type: 'text',
+        text: SYSTEM_PROMPT + '\n\n---\nGLOSSARIO DE REFERENCIA:\n\n' + glossario,
+        cache_control: { type: 'ephemeral' }
+      }
+    ],
     messages: [{
       role: 'user',
       content: [
         { type: 'image', source: { type: 'base64', media_type: mediaType, data: b64 } },
-        { type: 'text', text: `GLOSSARIO DE REFERENCIA:\n\n${glossario}\n\nTranscreva a imagem seguindo o pipeline e regras. Retorne APENAS o JSON.` }
+        { type: 'text', text: 'Transcreva a imagem seguindo o pipeline e regras. Retorne APENAS o JSON.' }
       ]
     }]
   };
@@ -465,23 +483,42 @@ async function callAnthropic({ apiKey, model, imageDataUrl, glossario }) {
   }
   const data = await resp.json();
   const text = data.content?.[0]?.text || '';
+  const usage = data.usage || {};
 
   // Remove possiveis cercas de codigo
   let clean = text.trim();
   if (clean.startsWith('```')) {
-    clean = clean.replace(/^```[a-z]*\n?/, '').replace(/```\s*$/, '');
+    clean = clean.replace(/^```[a-zA-Z]*\n?/, '').replace(/\n?```\s*$/, '');
   }
-  return JSON.parse(clean);
+  let parsed;
+  try {
+    parsed = JSON.parse(clean);
+  } catch (e) {
+    // Tolerante: tenta extrair o primeiro objeto JSON do meio do texto
+    const match = clean.match(/\{[\s\S]*\}/);
+    if (!match) throw new Error('resposta sem JSON parseavel: ' + clean.slice(0, 200));
+    parsed = JSON.parse(match[0]);
+  }
+  // Anexa metadados de uso (custo / cache hit)
+  parsed._usage = {
+    input_tokens: usage.input_tokens ?? 0,
+    output_tokens: usage.output_tokens ?? 0,
+    cache_creation_input_tokens: usage.cache_creation_input_tokens ?? 0,
+    cache_read_input_tokens: usage.cache_read_input_tokens ?? 0,
+    model_used: model
+  };
+  return parsed;
 }
 
 /* =========================================================================
    DOUBLE-PASS + COMPARACAO
 ========================================================================= */
 async function transcribeWithDoublePass({ apiKey, model, imageDataUrl, glossario }) {
-  const [r1, r2] = await Promise.all([
-    callAnthropic({ apiKey, model, imageDataUrl, glossario }),
-    callAnthropic({ apiKey, model, imageDataUrl, glossario }),
-  ]);
+  // Pass 1 sequencial: cria o cache do system+glossario na 1a chamada.
+  // Pass 2 le do cache (10% do custo) — fazer em paralelo erra os dois,
+  // sequencial garante que a 2a aproveite o cache.
+  const r1 = await callAnthropic({ apiKey, model, imageDataUrl, glossario });
+  const r2 = await callAnthropic({ apiKey, model, imageDataUrl, glossario });
 
   // Merge: tomar r1 como base, adicionar divergencias como duvidas extras
   const merged = JSON.parse(JSON.stringify(r1));
@@ -533,7 +570,92 @@ async function transcribeWithDoublePass({ apiKey, model, imageDataUrl, glossario
   const divergCount = merged.incertezas.length;
   merged.score_confianca = Math.max(0, baseScore - divergCount * 0.02);
   merged.needs_review = divergCount > 0;
+  merged._strategy = `double-pass-${model}`;
+  // Custo: somar uso das duas passagens
+  merged._usage = sumUsage(r1._usage, r2._usage);
   return merged;
+}
+
+// Pricing aproximado por modelo (USD por milhao de tokens). Atualizar se Anthropic mudar.
+const PRICING = {
+  'claude-haiku-4-5-20251001': { in: 1.00, out: 5.00 },
+  'claude-sonnet-4-6':         { in: 3.00, out: 15.00 },
+  'claude-opus-4-7':           { in: 15.00, out: 75.00 }
+};
+
+function estimateCostUSD(usage) {
+  if (!usage) return 0;
+  // Se foi misturado (auto-strategy), usa Sonnet como pior caso pra mostrar teto
+  const key = usage.model_used && PRICING[usage.model_used] ? usage.model_used : 'claude-sonnet-4-6';
+  const p = PRICING[key];
+  // Cache write custa 1.25x base, cache read custa 0.1x base
+  const inputCost = (
+    (usage.input_tokens || 0) * p.in +
+    (usage.cache_creation_input_tokens || 0) * p.in * 1.25 +
+    (usage.cache_read_input_tokens || 0) * p.in * 0.10
+  ) / 1_000_000;
+  const outputCost = (usage.output_tokens || 0) * p.out / 1_000_000;
+  return inputCost + outputCost;
+}
+
+function sumUsage(a, b) {
+  if (!a) return b; if (!b) return a;
+  return {
+    input_tokens: (a.input_tokens||0) + (b.input_tokens||0),
+    output_tokens: (a.output_tokens||0) + (b.output_tokens||0),
+    cache_creation_input_tokens: (a.cache_creation_input_tokens||0) + (b.cache_creation_input_tokens||0),
+    cache_read_input_tokens: (a.cache_read_input_tokens||0) + (b.cache_read_input_tokens||0),
+    model_used: a.model_used === b.model_used ? a.model_used : `${a.model_used}+${b.model_used}`
+  };
+}
+
+/* =========================================================================
+   ESTRATEGIA AUTO: Haiku primeiro, escala pra Sonnet se score baixo
+========================================================================= */
+const STRATEGY_THRESHOLDS = {
+  score_min: 0.7,           // se score < 0.7, escala
+  max_doubts: 5              // se > 5 duvidas, escala
+};
+
+async function transcribeWithStrategy({ apiKey, modelChoice, doublePass, imageDataUrl, glossario }) {
+  if (modelChoice === 'auto') {
+    // Tenta primeiro com Haiku (mais barato, ~3x menos que Sonnet)
+    const cheap = await callAnthropic({
+      apiKey, model: 'claude-haiku-4-5-20251001', imageDataUrl, glossario
+    });
+    const doubtCount = (cheap.incertezas || []).length;
+    const lowScore = (cheap.score_confianca ?? 1) < STRATEGY_THRESHOLDS.score_min;
+    const tooManyDoubts = doubtCount > STRATEGY_THRESHOLDS.max_doubts;
+
+    if (!lowScore && !tooManyDoubts) {
+      cheap._strategy = 'auto:haiku-only';
+      cheap.needs_review = doubtCount > 0;
+      return cheap;
+    }
+
+    // Escala pra Sonnet (mais preciso) — caso dificil
+    const better = await callAnthropic({
+      apiKey, model: 'claude-sonnet-4-6', imageDataUrl, glossario
+    });
+    better._strategy = `auto:haiku-then-sonnet (haiku score ${cheap.score_confianca ?? '?'}, ${doubtCount} duvidas)`;
+    better._haiku_attempt = {
+      score: cheap.score_confianca,
+      doubts: doubtCount,
+      reason: lowScore ? 'score-baixo' : 'muitas-duvidas'
+    };
+    better.needs_review = (better.incertezas || []).length > 0;
+    better._usage = sumUsage(cheap._usage, better._usage);
+    return better;
+  }
+
+  // Modelo fixo
+  if (doublePass) {
+    return await transcribeWithDoublePass({ apiKey, model: modelChoice, imageDataUrl, glossario });
+  }
+  const single = await callAnthropic({ apiKey, model: modelChoice, imageDataUrl, glossario });
+  single._strategy = `single-pass:${modelChoice}`;
+  single.needs_review = (single.incertezas || []).length > 0;
+  return single;
 }
 
 /* =========================================================================
@@ -634,9 +756,12 @@ async function processNext() {
   await dbPut(next);
   await render();
   try {
-    const result = await transcribeWithDoublePass({
-      apiKey: Config.apiKey, model: Config.model,
-      imageDataUrl: next.image_data_url, glossario: Config.glossario
+    const result = await transcribeWithStrategy({
+      apiKey: Config.apiKey,
+      modelChoice: Config.model,
+      doublePass: Config.doublePass,
+      imageDataUrl: next.image_data_url,
+      glossario: Config.glossario
     });
     next.result = result;
     next.status = result.needs_review ? 'needs-review' : 'approved';
@@ -673,6 +798,8 @@ function renderQueue(all) {
   $('#cnt-processing').textContent = all.filter(d => d.status === 'processing').length;
   $('#cnt-needs').textContent = all.filter(d => d.status === 'needs-review').length;
   $('#cnt-approved').textContent = all.filter(d => d.status === 'approved').length;
+  const totalCost = all.reduce((sum, d) => sum + estimateCostUSD(d.result?._usage), 0);
+  $('#cost-total').textContent = 'US$ ' + totalCost.toFixed(4);
 
   const list = $('#docs-list');
   list.innerHTML = '';
@@ -750,6 +877,8 @@ async function renderWork(all) {
         <span><strong>Comarca:</strong> ${escapeHtml(ce.comarca || '?')}</span>
         <span><strong>Adquirente:</strong> ${escapeHtml(ce.adquirente || '?')}</span>
         <span><strong>Score:</strong> ${Math.round((r.score_confianca||0)*100)}%</span>
+        <span style="color:var(--muted);font-size:0.85em;"><strong>Custo:</strong> US$ ${estimateCostUSD(r._usage).toFixed(4)}</span>
+        <span style="color:var(--muted);font-size:0.8em;flex-basis:100%;"><strong>Estratégia:</strong> ${escapeHtml(r._strategy || '?')}</span>
       </div>
       <img class="img-preview" src="${doc.image_data_url}">
       ${bodyHtml}
@@ -1020,6 +1149,10 @@ function bindUI() {
   // Model
   $('#model').value = Config.model;
   $('#model').onchange = e => Config.model = e.target.value;
+
+  // Double-pass toggle
+  $('#double-pass').checked = Config.doublePass;
+  $('#double-pass').onchange = e => Config.doublePass = e.target.checked;
 
   // Reviewer name
   const reviewerInput = $('#reviewer-name');
