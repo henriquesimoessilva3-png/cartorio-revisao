@@ -65,7 +65,50 @@
     display: flex;
     align-items: center;
     justify-content: space-between;
-    gap: 2em;
+    gap: 1.4em;
+    flex-wrap: wrap;
+  }
+  .header-key-row {
+    display: flex;
+    align-items: center;
+    gap: 0.5em;
+    flex: 1 1 380px;
+    min-width: 0;
+  }
+  .header-key-row input {
+    flex: 1;
+    min-width: 0;
+    background: rgba(255,255,255,0.12);
+    border: 1px solid rgba(255,255,255,0.25);
+    color: white;
+    padding: 0.55em 0.9em;
+    border-radius: 7px;
+    font: inherit;
+    font-size: 0.92em;
+  }
+  .header-key-row input::placeholder { color: rgba(255,255,255,0.5); }
+  .header-key-row input:focus {
+    outline: 2px solid #60a5fa;
+    outline-offset: -1px;
+    background: rgba(255,255,255,0.18);
+    border-color: #60a5fa;
+  }
+  .btn-header-action {
+    background: #3b82f6;
+    color: white;
+    border: none;
+    font: inherit;
+    font-weight: 600;
+    padding: 0.55em 1.1em;
+    border-radius: 7px;
+    cursor: pointer;
+    white-space: nowrap;
+    transition: background 0.12s;
+  }
+  .btn-header-action:hover { background: #2563eb; }
+  @media (max-width: 720px) {
+    .topbar-inner { gap: 0.7em; }
+    .header-key-row { flex-basis: 100%; order: 3; }
   }
   .brand h1 {
     margin: 0;
@@ -367,7 +410,8 @@
     padding: 2em 1em;
   }
   .doc-item {
-    padding: 0.7em 0.85em;
+    position: relative;
+    padding: 0.7em 2em 0.7em 0.85em;
     margin-bottom: 0.4em;
     border-radius: 7px;
     border: 1px solid transparent;
@@ -377,6 +421,33 @@
     display: flex;
     flex-direction: column;
     gap: 0.35em;
+  }
+  .doc-delete {
+    position: absolute;
+    top: 0.35em;
+    right: 0.35em;
+    background: transparent;
+    border: none;
+    color: var(--text-subtle);
+    font-size: 1.3em;
+    line-height: 1;
+    font-weight: bold;
+    cursor: pointer;
+    width: 26px;
+    height: 26px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    opacity: 0;
+    transition: opacity 0.15s, background 0.15s, color 0.15s;
+    padding: 0;
+  }
+  .doc-item:hover .doc-delete { opacity: 0.6; }
+  .doc-delete:hover {
+    opacity: 1 !important;
+    background: var(--danger-bg);
+    color: var(--danger-text);
   }
   .doc-item:hover { background: var(--bg); border-color: var(--border); }
   .doc-item.active {
@@ -696,6 +767,10 @@
       <h1>Revisão de Transcrições</h1>
       <p class="subtitle">Cartório · Registros manuscritos 1890–1976</p>
     </div>
+    <div class="header-key-row">
+      <input type="password" id="api-key" placeholder="cole sua sk-ant-... aqui" autocomplete="off">
+      <button class="btn-header-action" id="save-key" type="button">Salvar chave</button>
+    </div>
     <div class="topbar-user">
       <span class="key-pill" id="key-status">sem chave</span>
       <span class="reviewer-pill" id="reviewer-pill" style="display:none">
@@ -717,14 +792,10 @@
     <div class="card-body">
       <div class="form-grid">
 
-        <div class="form-row">
-          <label for="api-key">Sua chave da Anthropic</label>
-          <div class="input-with-action">
-            <input type="password" id="api-key" placeholder="sk-ant-…" autocomplete="off">
-            <button class="btn btn-primary" id="save-key" type="button">Salvar chave</button>
-          </div>
-          <p class="hint">Fica apenas no <code>localStorage</code> do seu navegador. Nunca sobe pro servidor. Pegue em <a href="https://console.anthropic.com/settings/keys" target="_blank">console.anthropic.com</a>.</p>
-        </div>
+        <p class="hint" style="margin: 0 0 0.4em;">
+          A chave da API está no <strong>header azul no topo</strong>. Fica apenas no <code>localStorage</code> do seu navegador (nunca sobe pro servidor).
+          Pegue em <a href="https://console.anthropic.com/settings/keys" target="_blank">console.anthropic.com</a>.
+        </p>
 
         <div class="form-row">
           <label for="reviewer-name">Seu nome (revisor)</label>
@@ -912,6 +983,16 @@ async function dbAll() {
   });
 }
 
+async function dbDelete(id) {
+  const db = await openDB();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction('docs', 'readwrite');
+    tx.objectStore('docs').delete(id);
+    tx.oncomplete = () => resolve();
+    tx.onerror = e => reject(e.target.error);
+  });
+}
+
 async function dbClear() {
   const db = await openDB();
   return new Promise((resolve, reject) => {
@@ -983,10 +1064,20 @@ const SYSTEM_PROMPT = `Voce e um especialista em paleografia brasileira. Sua tar
 documentos manuscritos de livros de Registro de Imoveis (Comarca de Ferros / MG, 1890-1976),
 em portugues antigo cursivo.
 
-REGRAS RIGIDAS:
-1. PRESERVE A ORTOGRAFIA ORIGINAL. Nunca modernize. Mantenha "commum", "districto",
-   "municipio" sem acento, "corego" sem rr, "transcricoes" sem acento, etc.
-   Se o escrivao errou, preserve o erro.
+REGRA SUPREMA — TRANSCRICAO LITERAL E INTEGRAL:
+O OBJETIVO E PRODUZIR UM FAC-SIMILE TEXTUAL FIEL AO LIVRO. Transcreva EXATAMENTE o que
+esta escrito, palavra por palavra, INCLUINDO erros do escrivao, ortografia pre-reforma,
+concordancia errada, repeticoes, redundancias, pontuacao inconsistente etc. NUNCA
+"corrija" o texto, NUNCA modernize, NUNCA suavize. Se o escrivao escreveu "commum",
+fica "commum" (NAO "comum"). Se escreveu "corego", fica "corego" (NAO "corrego" nem
+"corrego"). Se a concordancia esta errada, preserve. Esta regra TEM PRIORIDADE SOBRE
+QUALQUER OUTRA NORMA DO PORTUGUES MODERNO.
+
+OUTRAS REGRAS RIGIDAS:
+1. PRESERVE A ORTOGRAFIA ORIGINAL. Exemplos comuns no corpus: "commum", "districto",
+   "municipio" sem acento, "corego" sem rr, "transcricoes" sem acento, "publica" sem
+   acento, "pharmacia", "sciencia", "philosophia", "Anna", "Joanna", "sancto", "director",
+   "hontem". Se o escrivao errou (ex: "rresgistro" em vez de "registro"), preserve o erro.
 2. NAO INVENTE LETRAS. Para letras ausentes use [?]; para palavras totalmente ilegiveis
    use [ilegivel]; para duas hipoteses plausiveis use [palavra1/palavra2].
 3. Marque qualquer palavra de leitura DUVIDOSA em <span class="incerto"
@@ -1241,24 +1332,31 @@ async function hashString(s) {
 
 // --- Pre-flight check da imagem ---
 async function preflightCheckImage(dataUrl) {
-  const img = await loadImage(dataUrl);
-  const { width, height } = img;
-  if (width < 200 || height < 200) {
-    return { ok: false, reason: `imagem muito pequena (${width}x${height} px). Esperado >= 200x200.` };
+  try {
+    const img = await loadImage(dataUrl);
+    const { width, height } = img;
+    if (width < 200 || height < 200) {
+      return { ok: false, reason: `imagem muito pequena (${width}x${height} px). Esperado >= 200x200.` };
+    }
+    if (width > 12000 || height > 12000) {
+      return { ok: false, reason: `imagem muito grande (${width}x${height} px). Esperado <= 12000x12000.` };
+    }
+    const aspect = width / height;
+    if (aspect < 0.15 || aspect > 7) {
+      return { ok: false, reason: `proporção fora do esperado (${aspect.toFixed(2)}). Imagem provavelmente rotacionada errado.` };
+    }
+    // Variância de pixels — detecta imagens em branco/uniformes
+    // Threshold baixo: PDFs cartorários têm muito espaço branco, então variancia pode ser baixa mas legítima
+    const variance = await computeImageVariance(img);
+    if (variance < 10) {
+      return { ok: false, reason: `imagem completamente uniforme (variância ${variance.toFixed(1)}). Provavelmente página em branco.` };
+    }
+    return { ok: true, width, height, variance };
+  } catch (e) {
+    // Se falhar carregar/processar, deixa passar — API decide
+    console.warn('Pre-flight check falhou, deixando passar:', e);
+    return { ok: true, _check_failed: true };
   }
-  if (width > 8000 || height > 8000) {
-    return { ok: false, reason: `imagem muito grande (${width}x${height} px). Esperado <= 8000x8000.` };
-  }
-  const aspect = width / height;
-  if (aspect < 0.2 || aspect > 5) {
-    return { ok: false, reason: `proporção fora do esperado (${aspect.toFixed(2)}). Imagem provavelmente rotacionada errado.` };
-  }
-  // Variância de pixels — detecta imagens em branco ou uniformes
-  const variance = await computeImageVariance(img);
-  if (variance < 80) {
-    return { ok: false, reason: `imagem aparentemente vazia ou uniforme (variância ${variance.toFixed(0)}). Provavelmente página em branco.` };
-  }
-  return { ok: true, width, height, variance };
 }
 
 function loadImage(dataUrl) {
@@ -1523,15 +1621,28 @@ async function enqueueFile(file) {
 }
 
 async function processNext() {
-  if (State.processing) return;
+  if (State.processing) {
+    console.log('[processNext] ja tem um processando, skip');
+    return;
+  }
+  // Checa chave ANTES de marcar como processing — evita travar a fila se nao tem key
+  if (!Config.apiKey) {
+    console.warn('[processNext] sem API key. Salve a chave no header.');
+    toast('Configure sua API key no header (campo azul no topo).', 'error');
+    return;
+  }
   const all = await dbAll();
   const next = all.find(d => d.status === 'queued');
-  if (!next) return;
+  if (!next) {
+    console.log('[processNext] sem documentos na fila');
+    return;
+  }
 
   State.processing = true;
   next.status = 'processing';
   await dbPut(next);
   await render();
+  console.log(`[processNext] iniciando ${next.stem}`);
 
   try {
     // ===== Etapa 1: pre-flight check da imagem (grátis) =====
@@ -1540,6 +1651,7 @@ async function processNext() {
       throw new Error('Pre-flight reprovou: ' + preflight.reason);
     }
     next._preflight = preflight;
+    console.log(`[processNext] preflight OK`, preflight);
 
     // ===== Etapa 2: hash + cache check (grátis) =====
     const imgHash = await hashDataUrl(next.image_data_url);
@@ -1548,11 +1660,10 @@ async function processNext() {
     const cached = await cacheGet(imgHash);
     let result;
     if (cached && cached.glossarioHash === glossarioHash) {
-      // Cache hit! Não paga API.
+      console.log(`[processNext] cache hit pra ${imgHash.slice(0,12)}`);
       result = JSON.parse(JSON.stringify(cached.result));
       result._from_cache = true;
       result._strategy = (result._strategy || 'unknown') + ' (cache hit — US$ 0,00)';
-      // Zerar usage do cache pra não contar custo de novo
       if (result._usage) {
         result._usage = { input_tokens: 0, output_tokens: 0,
           cache_creation_input_tokens: 0, cache_read_input_tokens: 0,
@@ -1560,10 +1671,7 @@ async function processNext() {
       }
       toast(`Cache hit em ${next.stem} — economizou uma chamada de API ✓`, 'success');
     } else {
-      // ===== Etapa 3: precisa chamar API =====
-      if (!Config.apiKey) {
-        throw new Error('Sem API key. Configure no card de Configuração no topo.');
-      }
+      console.log(`[processNext] chamando API com modelo=${Config.model}, doublePass=${Config.doublePass}`);
       result = await transcribeWithStrategy({
         apiKey: Config.apiKey,
         modelChoice: Config.model,
@@ -1571,7 +1679,7 @@ async function processNext() {
         imageDataUrl: next.image_data_url,
         glossario: Config.glossario
       });
-      // Salva no cache pra reuso futuro
+      console.log(`[processNext] API OK, score=${result.score_confianca}, duvidas=${(result.incertezas||[]).length}`);
       await cachePut(imgHash, result, glossarioHash);
     }
 
@@ -1588,7 +1696,9 @@ async function processNext() {
       next.approved_at = Date.now();
     }
     await dbPut(next);
+    console.log(`[processNext] ${next.stem} -> ${next.status}`);
   } catch (e) {
+    console.error(`[processNext] erro em ${next.stem}:`, e);
     next.status = 'error';
     next.error = e.message;
     await dbPut(next);
@@ -1596,7 +1706,7 @@ async function processNext() {
   } finally {
     State.processing = false;
     await render();
-    setTimeout(processNext, 50);
+    setTimeout(processNext, 100);
   }
 }
 
@@ -1649,6 +1759,7 @@ function renderQueue(all) {
       ? ` · nº ${escapeHtml(d.result.numero_registro)}`
       : '';
     li.innerHTML = `
+      <button class="doc-delete" data-delete-id="${escapeAttr(d.id)}" title="Excluir este documento da fila" type="button">×</button>
       <div class="doc-name">${escapeHtml(d.stem)}</div>
       <div class="doc-meta">
         <span class="badge badge-${d.status}">${statusLabel(d.status)}</span>
@@ -1657,6 +1768,20 @@ function renderQueue(all) {
     li.onclick = () => { State.selected = d.id; render(); };
     list.appendChild(li);
   }
+  // Wire delete buttons (stopPropagation pra não selecionar o doc)
+  list.querySelectorAll('.doc-delete').forEach(btn => {
+    btn.onclick = async (e) => {
+      e.stopPropagation();
+      const id = btn.dataset.deleteId;
+      const doc = (await dbAll()).find(d => d.id === id);
+      const label = doc ? doc.stem : 'este documento';
+      if (!confirm(`Excluir "${label}" da fila? (Não desfaz documentos já baixados em ZIP.)`)) return;
+      await dbDelete(id);
+      if (State.selected === id) State.selected = null;
+      await render();
+      toast('Documento excluído', 'success');
+    };
+  });
 }
 
 function statusLabel(s) {
@@ -2013,13 +2138,21 @@ function bindUI() {
 
   keyInput.value = Config.apiKey;
   refreshKeyStatus();
-  $('#save-key').onclick = () => {
-    Config.apiKey = keyInput.value.trim();
+
+  function saveKey() {
+    const v = keyInput.value.trim();
+    if (v === Config.apiKey) return;
+    Config.apiKey = v;
     refreshKeyStatus();
     toast(Config.apiKey ? 'Chave salva ✓' : 'Chave removida', 'success');
-    // Se acabou de salvar, retoma processamento
     if (Config.apiKey) setTimeout(processNext, 100);
+  }
+  $('#save-key').onclick = saveKey;
+  keyInput.onblur = saveKey;
+  keyInput.onkeydown = (e) => {
+    if (e.key === 'Enter') { e.preventDefault(); saveKey(); keyInput.blur(); }
   };
+
   function refreshKeyStatus() {
     if (Config.apiKey && Config.apiKey.length > 20) {
       keyStatus.textContent = '✓ ' + Config.apiKey.slice(0, 12) + '…';
@@ -2030,18 +2163,13 @@ function bindUI() {
     }
   }
 
-  // Toggle do card de configuração
+  // Toggle do card de configuração (sem auto-colapsar — agora só nome+modelo+gloss)
   const configCard = $('#config-card');
   const toggleBtn = $('#toggle-config');
   toggleBtn.onclick = () => {
     configCard.classList.toggle('collapsed');
     toggleBtn.textContent = configCard.classList.contains('collapsed') ? 'mostrar' : 'esconder';
   };
-  // Auto-colapsa se já tem chave salva
-  if (Config.apiKey && Config.apiKey.length > 20) {
-    configCard.classList.add('collapsed');
-    toggleBtn.textContent = 'mostrar';
-  }
 
   // Model
   $('#model').value = Config.model;
