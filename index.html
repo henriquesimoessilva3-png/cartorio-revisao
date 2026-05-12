@@ -68,47 +68,71 @@
     gap: 1.4em;
     flex-wrap: wrap;
   }
-  .header-key-row {
-    display: flex;
-    align-items: center;
-    gap: 0.5em;
-    flex: 1 1 380px;
-    min-width: 0;
-  }
-  .header-key-row input {
+  .topbar-keys {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 0.4em;
     flex: 1;
     min-width: 0;
-    background: rgba(255,255,255,0.12);
-    border: 1px solid rgba(255,255,255,0.25);
-    color: white;
-    padding: 0.55em 0.9em;
-    border-radius: 7px;
-    font: inherit;
-    font-size: 0.92em;
   }
-  .header-key-row input::placeholder { color: rgba(255,255,255,0.5); }
-  .header-key-row input:focus {
-    outline: 2px solid #60a5fa;
-    outline-offset: -1px;
-    background: rgba(255,255,255,0.18);
+  .key-field {
+    display: flex;
+    flex-direction: column;
+    gap: 0.2em;
+    min-width: 0;
+  }
+  .key-field label {
+    font-size: 0.7em;
+    color: var(--header-subtle);
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+    display: flex;
+    align-items: center;
+    gap: 0.3em;
+  }
+  .key-field label .free-badge {
+    background: rgba(34,197,94,0.25);
+    color: #86efac;
+    padding: 0.05em 0.4em;
+    border-radius: 999px;
+    font-size: 0.85em;
+    text-transform: none;
+    letter-spacing: 0;
+  }
+  .key-field input {
+    background: rgba(255,255,255,0.1);
+    border: 1px solid rgba(255,255,255,0.2);
+    color: white;
+    padding: 0.45em 0.7em;
+    border-radius: 6px;
+    font: inherit;
+    font-size: 0.82em;
+    transition: border-color 0.15s, background 0.15s;
+    min-width: 0;
+    width: 100%;
+  }
+  .key-field input::placeholder {
+    color: rgba(255,255,255,0.4);
+    font-size: 0.9em;
+  }
+  .key-field input:focus {
+    outline: none;
+    background: rgba(255,255,255,0.17);
     border-color: #60a5fa;
   }
-  .btn-header-action {
-    background: #3b82f6;
-    color: white;
-    border: none;
-    font: inherit;
-    font-weight: 600;
-    padding: 0.55em 1.1em;
-    border-radius: 7px;
-    cursor: pointer;
-    white-space: nowrap;
-    transition: background 0.12s;
+  .key-field input.has-key {
+    background: rgba(34,197,94,0.12);
+    border-color: rgba(34,197,94,0.5);
   }
-  .btn-header-action:hover { background: #2563eb; }
+  .key-field input.has-key::placeholder { color: rgba(134,239,172,0.6); }
+
+  @media (max-width: 1200px) {
+    .topbar-keys { grid-template-columns: repeat(2, 1fr); }
+  }
   @media (max-width: 720px) {
-    .topbar-inner { gap: 0.7em; }
-    .header-key-row { flex-basis: 100%; order: 3; }
+    .topbar-keys { grid-template-columns: 1fr; }
+    .topbar-inner { flex-wrap: wrap; }
   }
   .brand h1 {
     margin: 0;
@@ -837,6 +861,19 @@
   }
   .notice-body strong { color: #78350f; }
 
+  .keys-help {
+    background: var(--bg);
+    border-radius: 8px;
+    padding: 0.9em 1.1em;
+    font-size: 0.88em;
+    margin-bottom: 0.5em;
+  }
+  .keys-help p { margin: 0 0 0.5em; }
+  .keys-help p:last-child { margin-bottom: 0; }
+  .keys-help ul { margin: 0.4em 0; padding-left: 1.4em; }
+  .keys-help ul li { margin-bottom: 0.3em; }
+  .keys-help a { color: var(--primary); font-weight: 600; }
+
   details.glossario-details summary {
     cursor: pointer;
     font-size: 0.88em;
@@ -855,14 +892,27 @@
   <div class="topbar-inner">
     <div class="brand">
       <h1>Revisão de Transcrições</h1>
-      <p class="subtitle">Cartório · Registros manuscritos 1890–1976</p>
+      <p class="subtitle">Cartório · 1890–1976</p>
     </div>
-    <div class="header-key-row">
-      <input type="password" id="api-key" placeholder="cole sua sk-ant-... aqui" autocomplete="off">
-      <button class="btn-header-action" id="save-key" type="button">Salvar chave</button>
+    <div class="topbar-keys">
+      <div class="key-field" title="Pegue em aistudio.google.com/apikey (login Google, sem cartão)">
+        <label>Gemini <span class="free-badge">grátis</span></label>
+        <input type="password" id="gemini-key" placeholder="AIza..." autocomplete="off">
+      </div>
+      <div class="key-field" title="Pegue em openrouter.ai/keys (sem cartão, 200 req/dia em vários modelos)">
+        <label>OpenRouter <span class="free-badge">grátis</span></label>
+        <input type="password" id="openrouter-key" placeholder="sk-or-v1-..." autocomplete="off">
+      </div>
+      <div class="key-field" title="Pegue em console.anthropic.com/settings/keys (precisa cartão)">
+        <label>Anthropic</label>
+        <input type="password" id="api-key" placeholder="sk-ant-..." autocomplete="off">
+      </div>
+      <div class="key-field" title="Pegue em platform.openai.com/api-keys (precisa cartão)">
+        <label>OpenAI</label>
+        <input type="password" id="openai-key" placeholder="sk-..." autocomplete="off">
+      </div>
     </div>
     <div class="topbar-user">
-      <span class="key-pill" id="key-status">sem chave</span>
       <span class="reviewer-pill" id="reviewer-pill" style="display:none">
         <span class="avatar" id="reviewer-avatar">?</span>
         <span id="reviewer-display">—</span>
@@ -870,6 +920,7 @@
     </div>
   </div>
 </header>
+<span id="key-status" style="display:none"></span>
 
 <main class="container">
 
@@ -901,47 +952,15 @@
     <div class="card-body">
       <div class="form-grid">
 
-        <p class="hint" style="margin: 0 0 0.4em;">
-          A chave <strong>Anthropic</strong> fica no header azul no topo (campo principal).
-          Pegue em <a href="https://console.anthropic.com/settings/keys" target="_blank">console.anthropic.com</a>.
-        </p>
-
-        <div class="form-row">
-          <label for="gemini-key">🆓 Chave Gemini (Google) — <strong>1500 req/dia GRÁTIS, sem cartão</strong></label>
-          <div class="input-with-action">
-            <input type="password" id="gemini-key" placeholder="AIza..." autocomplete="off">
-            <button class="btn btn-secondary btn-small" id="save-gemini-key" type="button">Salvar</button>
-          </div>
-          <p class="hint">
-            <strong>Opção mais recomendada pra começar grátis.</strong> Pegue em
-            <a href="https://aistudio.google.com/apikey" target="_blank">aistudio.google.com/apikey</a>
-            (login Google, sem cartão de crédito). Gemini Flash-Lite tem 1500 req/dia no free tier — dá pros 14 PDFs do POC.
-          </p>
-        </div>
-
-        <div class="form-row">
-          <label for="openrouter-key">🆓 Chave OpenRouter — <strong>200 req/dia GRÁTIS em vários modelos</strong></label>
-          <div class="input-with-action">
-            <input type="password" id="openrouter-key" placeholder="sk-or-v1-..." autocomplete="off">
-            <button class="btn btn-secondary btn-small" id="save-openrouter-key" type="button">Salvar</button>
-          </div>
-          <p class="hint">
-            Acesso a Qwen 72B, Llama 3.2 90B, Pixtral e outros. Pegue em
-            <a href="https://openrouter.ai/keys" target="_blank">openrouter.ai/keys</a>.
-            Free tier compartilhado entre todos os modelos free (20 req/min, 200 req/dia).
-          </p>
-        </div>
-
-        <div class="form-row">
-          <label for="openai-key">Chave OpenAI (opcional, pago — GPT-4o)</label>
-          <div class="input-with-action">
-            <input type="password" id="openai-key" placeholder="sk-..." autocomplete="off">
-            <button class="btn btn-secondary btn-small" id="save-openai-key" type="button">Salvar</button>
-          </div>
-          <p class="hint">
-            GPT-4o-mini ~US$ 0,003/img. Pegue em
-            <a href="https://platform.openai.com/api-keys" target="_blank">platform.openai.com/api-keys</a>.
-          </p>
+        <div class="keys-help">
+          <p><strong>As 4 chaves estão no header escuro no topo da página.</strong> Onde pegar cada uma:</p>
+          <ul>
+            <li>🆓 <strong>Gemini</strong> (recomendado, 1500/dia) — <a href="https://aistudio.google.com/apikey" target="_blank">aistudio.google.com/apikey</a> (sem cartão)</li>
+            <li>🆓 <strong>OpenRouter</strong> (200/dia em vários modelos) — <a href="https://openrouter.ai/keys" target="_blank">openrouter.ai/keys</a> (sem cartão)</li>
+            <li><strong>Anthropic</strong> (pago) — <a href="https://console.anthropic.com/settings/keys" target="_blank">console.anthropic.com</a></li>
+            <li><strong>OpenAI</strong> (pago) — <a href="https://platform.openai.com/api-keys" target="_blank">platform.openai.com/api-keys</a></li>
+          </ul>
+          <p>Salvam automaticamente ao digitar e perder o foco. Ficam só no <code>localStorage</code> do seu navegador.</p>
         </div>
 
         <div class="form-row">
@@ -2710,38 +2729,28 @@ function bindUI() {
   const keyInput = $('#api-key');
   const keyStatus = $('#key-status');
 
-  keyInput.value = Config.apiKey;
-  refreshKeyStatus();
-
-  function saveKey() {
-    const v = keyInput.value.trim();
-    if (v === Config.apiKey) return;
-    Config.apiKey = v;
-    refreshKeyStatus();
-    toast(Config.apiKey ? 'Chave salva ✓' : 'Chave removida', 'success');
-    if (Config.apiKey) setTimeout(processNext, 100);
+  // Visual "has-key" nos inputs (border verde se tem chave)
+  function refreshKeyHas(inputId, configProp) {
+    const inp = $(`#${inputId}`);
+    if (!inp) return;
+    const has = Config[configProp] && Config[configProp].length > 20;
+    inp.classList.toggle('has-key', has);
   }
-  $('#save-key').onclick = saveKey;
-  keyInput.onblur = saveKey;
-  keyInput.onkeydown = (e) => {
-    if (e.key === 'Enter') { e.preventDefault(); saveKey(); keyInput.blur(); }
-  };
 
   function refreshKeyStatus() {
     const notice = $('#no-key-notice');
-    if (Config.apiKey && Config.apiKey.length > 20) {
-      keyStatus.textContent = '✓ ' + Config.apiKey.slice(0, 12) + '…';
-      keyStatus.classList.add('ok');
-      if (notice) notice.style.display = 'none';
-    } else {
-      keyStatus.textContent = 'sem chave';
-      keyStatus.classList.remove('ok');
-      if (notice) notice.style.display = 'flex';
-    }
+    refreshKeyHas('api-key',        'apiKey');
+    refreshKeyHas('gemini-key',     'geminiKey');
+    refreshKeyHas('openrouter-key', 'openrouterKey');
+    refreshKeyHas('openai-key',     'openaiKey');
+    // Banner so esconde quando TEM pelo menos uma chave
+    const hasAny = Config.apiKey || Config.geminiKey || Config.openrouterKey || Config.openaiKey;
+    if (notice) notice.style.display = hasAny ? 'none' : 'flex';
   }
+  refreshKeyStatus();
 
-  // Helper genérico pra bindar campos de chave de provider
-  function bindProviderKey(inputId, btnId, configProp, providerName) {
+  // Helper genérico pra bindar campos de chave (todos no header agora)
+  function bindHeaderKey(inputId, configProp, providerName) {
     const inp = $(`#${inputId}`);
     if (!inp) return;
     inp.value = Config[configProp];
@@ -2749,18 +2758,19 @@ function bindUI() {
       const v = inp.value.trim();
       if (v === Config[configProp]) return;
       Config[configProp] = v;
+      refreshKeyStatus();
       toast(Config[configProp] ? `Chave ${providerName} salva ✓` : `Chave ${providerName} removida`, 'success');
       if (Config[configProp]) setTimeout(processNext, 100);
     };
-    $(`#${btnId}`).onclick = save;
     inp.onblur = save;
     inp.onkeydown = (e) => {
       if (e.key === 'Enter') { e.preventDefault(); save(); inp.blur(); }
     };
   }
-  bindProviderKey('openai-key',     'save-openai-key',     'openaiKey',     'OpenAI');
-  bindProviderKey('gemini-key',     'save-gemini-key',     'geminiKey',     'Gemini');
-  bindProviderKey('openrouter-key', 'save-openrouter-key', 'openrouterKey', 'OpenRouter');
+  bindHeaderKey('api-key',        'apiKey',        'Anthropic');
+  bindHeaderKey('openai-key',     'openaiKey',     'OpenAI');
+  bindHeaderKey('gemini-key',     'geminiKey',     'Gemini');
+  bindHeaderKey('openrouter-key', 'openrouterKey', 'OpenRouter');
 
   // Toggle do card de configuração
   const configCard = $('#config-card');
