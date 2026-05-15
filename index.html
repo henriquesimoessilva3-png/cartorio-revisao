@@ -819,6 +819,60 @@
   .toast.error { background: #b91c1c; }
   .toast.success { background: #15803d; }
 
+  /* ===== Modal de agrupamento ===== */
+  .modal-overlay {
+    position: fixed; inset: 0;
+    background: rgba(0,0,0,0.55);
+    display: flex; align-items: center; justify-content: center;
+    z-index: 200; padding: 1em;
+  }
+  .modal-box {
+    background: var(--card-bg, #fff);
+    color: var(--text);
+    border-radius: 12px;
+    padding: 1.6em 1.8em;
+    max-width: 520px;
+    box-shadow: 0 16px 48px rgba(0,0,0,0.3);
+  }
+  .modal-box h3 { margin: 0 0 0.4em; font-size: 1.15em; }
+  .modal-sub { margin: 0 0 1.2em; color: var(--text-muted); font-size: 0.9em; }
+  .modal-actions { display: flex; flex-direction: column; gap: 0.6em; margin-bottom: 1em; }
+  .modal-actions .btn { display: flex; flex-direction: column; align-items: flex-start;
+    text-align: left; padding: 0.9em 1.1em; gap: 0.2em; }
+  .modal-actions .btn strong { font-size: 0.98em; }
+  .modal-actions .btn small { font-size: 0.78em; opacity: 0.85; font-weight: normal; }
+  .modal-hint { font-size: 0.78em; color: var(--text-muted); margin: 0; line-height: 1.4; }
+
+  /* ===== Banner de grupo aberto ===== */
+  .open-group-banner {
+    display: flex; align-items: center; gap: 0.6em;
+    background: #e0f2fe; border: 1px solid #7dd3fc;
+    border-radius: 8px; padding: 0.7em 1em; margin-top: 0.8em;
+    font-size: 0.88em; color: #075985;
+  }
+  .ogb-icon { font-size: 1.2em; }
+  .ogb-text { flex: 1; }
+  .ogb-count { color: #0369a1; margin-left: 0.5em; font-weight: 600; }
+
+  /* ===== Grupo na fila ===== */
+  .group-item {
+    background: var(--card-bg-subtle, rgba(125,211,252,0.08));
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 0.4em 0.5em 0.4em;
+    margin-bottom: 0.5em;
+  }
+  .group-header {
+    display: flex; align-items: center; gap: 0.5em;
+    padding: 0.35em 0.5em 0.5em;
+    font-size: 0.88em; font-weight: 600;
+    border-bottom: 1px dashed var(--border);
+    margin-bottom: 0.35em;
+  }
+  .group-header .group-actions { margin-left: auto; display: flex; gap: 0.3em; }
+  .group-item .doc-item { margin-left: 1.2em; }
+  .group-item .doc-name::before { content: '└ '; opacity: 0.5; font-weight: normal; }
+
   .notice {
     background: #fef3c7;
     border: 1px solid #fcd34d;
@@ -1039,6 +1093,17 @@
           <span class="drop-zone-hint">ou clique pra escolher · PDFs multi-página são separados automaticamente</span>
         </span>
       </label>
+
+      <!-- Banner de grupo aberto -->
+      <div class="open-group-banner" id="open-group-banner" style="display:none;">
+        <span class="ogb-icon">📁</span>
+        <span class="ogb-text">
+          <strong>Grupo aberto:</strong> <span id="ogb-label">documento</span>
+          <span class="ogb-count" id="ogb-count">0 página(s)</span>
+        </span>
+        <button class="btn btn-secondary btn-small" id="ogb-add" type="button">+ Adicionar páginas</button>
+        <button class="btn btn-success btn-small" id="ogb-close" type="button">✓ Encerrar grupo</button>
+      </div>
       <div class="stats-row">
         <div class="stat stat-queued">
           <span class="stat-label">Fila</span>
@@ -1088,6 +1153,25 @@
 </main>
 
 <div class="toast" id="toast"></div>
+
+<!-- Modal: agrupar upload? -->
+<div class="modal-overlay" id="group-ask-modal" style="display:none;">
+  <div class="modal-box">
+    <h3>Como tratar <span id="gam-count">esses arquivos</span>?</h3>
+    <p class="modal-sub">Você acabou de enviar <strong id="gam-files">N</strong> arquivo(s).</p>
+    <div class="modal-actions">
+      <button class="btn btn-secondary" id="gam-separate" type="button">
+        <strong>Cada um é um documento</strong>
+        <small>1 imagem = 1 transcrição (como antes)</small>
+      </button>
+      <button class="btn btn-success" id="gam-group" type="button">
+        <strong>📁 Tudo é um único documento</strong>
+        <small>Várias páginas que serão unidas no Word final</small>
+      </button>
+    </div>
+    <p class="modal-hint">Se escolher "único documento", você poderá adicionar mais páginas depois e clicar em "Encerrar grupo" quando terminar.</p>
+  </div>
+</div>
 
 <script>
 /* =========================================================================
@@ -2102,15 +2186,19 @@ const State = {
   processing: false,
   // IDs de docs que devem ignorar o cache na proxima execucao (force reprocess)
   bypassCacheIds: new Set(),
+  // Grupo de upload em formação (null se nenhum). { id, label }
+  pendingGroup: null,
+  // Grupos colapsados na fila visual
+  collapsedGroups: new Set(),
 };
 
-async function enqueueFile(file) {
+async function enqueueFile(file, groupInfo) {
   try {
     const dataUrls = await fileToImageDataUrls(file);
     for (let i = 0; i < dataUrls.length; i++) {
       const id = `${file.name}_${i+1}_${Date.now()}_${Math.random().toString(36).slice(2,7)}`;
       const stem = file.name.replace(/\.[^.]+$/, '') + (dataUrls.length > 1 ? `_p${i+1}` : '');
-      await dbPut({
+      const doc = {
         id, stem,
         original_name: file.name,
         image_data_url: dataUrls[i],
@@ -2118,12 +2206,112 @@ async function enqueueFile(file) {
         added_at: Date.now(),
         result: null,
         approvals: {}
-      });
+      };
+      if (groupInfo) {
+        doc.group_id = groupInfo.id;
+        doc.group_label = groupInfo.label;
+        doc.group_order = await nextGroupOrder(groupInfo.id);
+      }
+      await dbPut(doc);
     }
     await render();
     if (document.getElementById('auto-process').checked) processNext();
   } catch (e) {
     toast('Erro ao processar arquivo: ' + e.message, 'error');
+  }
+}
+
+/* =========================================================================
+   GROUPS — várias páginas viram 1 documento (Word unificado no fim)
+========================================================================= */
+async function nextGroupOrder(groupId) {
+  const all = await dbAll();
+  const inGroup = all.filter(d => d.group_id === groupId);
+  return inGroup.length;
+}
+
+async function getGroupDocs(groupId) {
+  const all = await dbAll();
+  return all
+    .filter(d => d.group_id === groupId)
+    .sort((a, b) => (a.group_order ?? 0) - (b.group_order ?? 0));
+}
+
+function newGroupId() {
+  return `g_${Date.now()}_${Math.random().toString(36).slice(2,7)}`;
+}
+
+async function startNewGroupForFiles(files, label) {
+  const groupInfo = { id: newGroupId(), label: label || `Documento ${new Date().toLocaleString('pt-BR')}` };
+  State.pendingGroup = groupInfo;
+  for (const f of files) await enqueueFile(f, groupInfo);
+  await updateOpenGroupBanner();
+}
+
+async function addFilesToPendingGroup(files) {
+  if (!State.pendingGroup) return;
+  for (const f of files) await enqueueFile(f, State.pendingGroup);
+  await updateOpenGroupBanner();
+}
+
+async function closePendingGroup() {
+  if (!State.pendingGroup) return;
+  const all = await dbAll();
+  const docs = all.filter(d => d.group_id === State.pendingGroup.id);
+  for (const d of docs) {
+    d.group_closed = true;
+    await dbPut(d);
+  }
+  const count = docs.length;
+  const label = State.pendingGroup.label;
+  State.pendingGroup = null;
+  await updateOpenGroupBanner();
+  await render();
+  toast(`Grupo "${label}" encerrado com ${count} página(s) ✓`, 'success');
+}
+
+async function updateOpenGroupBanner() {
+  const banner = document.getElementById('open-group-banner');
+  if (!banner) return;
+  if (!State.pendingGroup) {
+    banner.style.display = 'none';
+    return;
+  }
+  const docs = await getGroupDocs(State.pendingGroup.id);
+  banner.style.display = 'flex';
+  document.getElementById('ogb-label').textContent = State.pendingGroup.label;
+  document.getElementById('ogb-count').textContent = `${docs.length} página(s)`;
+}
+
+function askGroupChoice(fileCount) {
+  return new Promise(resolve => {
+    const modal = document.getElementById('group-ask-modal');
+    document.getElementById('gam-files').textContent = String(fileCount);
+    document.getElementById('gam-count').textContent = fileCount === 1 ? 'essa imagem' : 'esses arquivos';
+    modal.style.display = 'flex';
+    const cleanup = () => { modal.style.display = 'none'; };
+    document.getElementById('gam-separate').onclick = () => { cleanup(); resolve('separate'); };
+    document.getElementById('gam-group').onclick = () => { cleanup(); resolve('group'); };
+  });
+}
+
+async function handleUploadedFiles(files) {
+  const arr = Array.from(files);
+  if (arr.length === 0) return;
+
+  // Já tem grupo aberto? Adiciona direto.
+  if (State.pendingGroup) {
+    await addFilesToPendingGroup(arr);
+    return;
+  }
+
+  // Pergunta: separado ou grupo?
+  const choice = await askGroupChoice(arr.length);
+  if (choice === 'separate') {
+    for (const f of arr) await enqueueFile(f);
+  } else {
+    const label = arr[0].name.replace(/\.[^.]+$/, '').replace(/_p\d+$/i, '');
+    await startNewGroupForFiles(arr, label);
   }
 }
 
@@ -2312,29 +2500,91 @@ function renderQueue(all) {
     list.innerHTML = '<li class="docs-empty">Nenhum documento ainda.</li>';
     return;
   }
-  const sorted = [...all].sort((a, b) => a.added_at - b.added_at);
-  for (const d of sorted) {
-    const li = document.createElement('li');
-    li.className = 'doc-item' + (d.id === State.selected ? ' active' : '');
-    li.dataset.id = d.id;
-    const score = d.result?.score_confianca != null
-      ? ` · ${Math.round(d.result.score_confianca*100)}%`
-      : '';
-    const numero = d.result?.numero_registro
-      ? ` · nº ${escapeHtml(d.result.numero_registro)}`
-      : '';
-    li.innerHTML = `
-      <button class="doc-delete" data-delete-id="${escapeAttr(d.id)}" title="Excluir este documento da fila" type="button">×</button>
-      <div class="doc-name">${escapeHtml(d.stem)}</div>
-      <div class="doc-meta">
-        <span class="badge badge-${d.status}">${statusLabel(d.status)}</span>
-        <span>${numero}${score}</span>
-      </div>`;
-    li.onclick = () => { State.selected = d.id; render(); };
-    list.appendChild(li);
+
+  // Agrupar: docs com group_id formam pastas; restante é solto.
+  // Ordem: pelo added_at do PRIMEIRO doc de cada grupo (ou do doc solto).
+  const groups = new Map();          // group_id -> [docs sorted por group_order]
+  const standalone = [];
+  for (const d of all) {
+    if (d.group_id) {
+      if (!groups.has(d.group_id)) groups.set(d.group_id, []);
+      groups.get(d.group_id).push(d);
+    } else {
+      standalone.push(d);
+    }
   }
-  // Wire delete buttons (stopPropagation pra não selecionar o doc)
-  list.querySelectorAll('.doc-delete').forEach(btn => {
+  for (const arr of groups.values()) arr.sort((a, b) => (a.group_order ?? 0) - (b.group_order ?? 0));
+
+  // Junta entradas (grupo ou solto) com chave de ordenação = added_at do primeiro
+  const entries = [];
+  for (const [gid, arr] of groups.entries()) {
+    entries.push({ kind: 'group', gid, docs: arr, key: arr[0].added_at });
+  }
+  for (const d of standalone) {
+    entries.push({ kind: 'doc', doc: d, key: d.added_at });
+  }
+  entries.sort((a, b) => a.key - b.key);
+
+  for (const entry of entries) {
+    if (entry.kind === 'doc') {
+      list.appendChild(renderDocItem(entry.doc));
+    } else {
+      list.appendChild(renderGroupItem(entry.gid, entry.docs));
+    }
+  }
+  wireQueueButtons(list);
+}
+
+function renderDocItem(d) {
+  const li = document.createElement('li');
+  li.className = 'doc-item' + (d.id === State.selected ? ' active' : '');
+  li.dataset.id = d.id;
+  const score = d.result?.score_confianca != null ? ` · ${Math.round(d.result.score_confianca*100)}%` : '';
+  const numero = d.result?.numero_registro ? ` · nº ${escapeHtml(d.result.numero_registro)}` : '';
+  li.innerHTML = `
+    <button class="doc-delete" data-delete-id="${escapeAttr(d.id)}" title="Excluir este documento da fila" type="button">×</button>
+    <div class="doc-name">${escapeHtml(d.stem)}</div>
+    <div class="doc-meta">
+      <span class="badge badge-${d.status}">${statusLabel(d.status)}</span>
+      <span>${numero}${score}</span>
+    </div>`;
+  li.onclick = () => { State.selected = d.id; render(); };
+  return li;
+}
+
+function renderGroupItem(gid, docs) {
+  const li = document.createElement('li');
+  li.className = 'group-item';
+  const total = docs.length;
+  const approvedN = docs.filter(d => d.status === 'approved').length;
+  const allApproved = approvedN === total && total > 0;
+  const label = escapeHtml(docs[0].group_label || 'Documento');
+  const isOpen = docs.some(d => !d.group_closed);
+  const collapsed = State.collapsedGroups.has(gid);
+
+  const header = document.createElement('div');
+  header.className = 'group-header';
+  header.innerHTML = `
+    <span class="ogb-icon">📁</span>
+    <span>${label} <span class="ogb-count">${approvedN}/${total} aprovada(s)</span>${isOpen ? ' <span class="ogb-count" style="color:#0369a1;">aberto</span>' : ''}</span>
+    <span class="group-actions">
+      ${allApproved ? `<button class="btn btn-success btn-small" data-group-word="${escapeAttr(gid)}" type="button" title="Baixar todas as páginas combinadas em 1 Word">⬇ Word do grupo</button>` : ''}
+      <button class="btn btn-secondary btn-small" data-group-toggle="${escapeAttr(gid)}" type="button">${collapsed ? '▸' : '▾'}</button>
+      <button class="doc-delete" data-delete-group="${escapeAttr(gid)}" title="Excluir o grupo inteiro" type="button">×</button>
+    </span>`;
+  li.appendChild(header);
+
+  if (!collapsed) {
+    const inner = document.createElement('ul');
+    inner.style.cssText = 'list-style:none;padding:0;margin:0;';
+    for (const d of docs) inner.appendChild(renderDocItem(d));
+    li.appendChild(inner);
+  }
+  return li;
+}
+
+function wireQueueButtons(list) {
+  list.querySelectorAll('.doc-delete[data-delete-id]').forEach(btn => {
     btn.onclick = async (e) => {
       e.stopPropagation();
       const id = btn.dataset.deleteId;
@@ -2345,6 +2595,36 @@ function renderQueue(all) {
       if (State.selected === id) State.selected = null;
       await render();
       toast('Documento excluído', 'success');
+    };
+  });
+  list.querySelectorAll('[data-delete-group]').forEach(btn => {
+    btn.onclick = async (e) => {
+      e.stopPropagation();
+      const gid = btn.dataset.deleteGroup;
+      const docs = await getGroupDocs(gid);
+      if (!confirm(`Excluir o grupo inteiro (${docs.length} página(s))?`)) return;
+      for (const d of docs) await dbDelete(d.id);
+      if (State.pendingGroup && State.pendingGroup.id === gid) {
+        State.pendingGroup = null;
+        await updateOpenGroupBanner();
+      }
+      await render();
+      toast('Grupo excluído', 'success');
+    };
+  });
+  list.querySelectorAll('[data-group-toggle]').forEach(btn => {
+    btn.onclick = (e) => {
+      e.stopPropagation();
+      const gid = btn.dataset.groupToggle;
+      if (State.collapsedGroups.has(gid)) State.collapsedGroups.delete(gid);
+      else State.collapsedGroups.add(gid);
+      render();
+    };
+  });
+  list.querySelectorAll('[data-group-word]').forEach(btn => {
+    btn.onclick = (e) => {
+      e.stopPropagation();
+      downloadGroupAsWord(btn.dataset.groupWord);
     };
   });
 }
@@ -2469,8 +2749,9 @@ async function renderWork(all) {
       <div class="approve-row">
         <span class="resolved-stats ${allResolved ? 'complete' : ''}">
           ${allResolved ? '✓ Pronto pra aprovar' : `Faltam ${totalDoubts - resolvedDoubts} de ${totalDoubts} dúvidas`}
+          ${doc.group_id ? `<br><small style="color:var(--text-muted);">📁 parte do grupo "${escapeHtml(doc.group_label || 'documento')}" — Word fica disponível no grupo quando todas as páginas forem aprovadas</small>` : ''}
         </span>
-        ${doc.status === 'approved' ? `
+        ${doc.status === 'approved' && !doc.group_id ? `
           <button class="btn btn-secondary" id="download-word-btn" type="button" title="Baixar este documento em Word (.doc)">
             ⬇ Baixar Word
           </button>
@@ -2852,15 +3133,89 @@ function downloadDocAsWord(doc) {
     return;
   }
   const html = buildWordHtml(doc);
+  triggerDocDownload(html, `${doc.stem || 'registro'}.doc`);
+  toast('Word gerado ✓', 'success');
+}
+
+async function downloadGroupAsWord(groupId) {
+  const docs = await getGroupDocs(groupId);
+  if (!docs.length) { toast('Grupo vazio.', 'error'); return; }
+  const pendentes = docs.filter(d => d.status !== 'approved');
+  if (pendentes.length) {
+    toast(`Faltam ${pendentes.length} página(s) aprovar antes de baixar.`, 'error');
+    return;
+  }
+  const html = buildGroupWordHtml(docs);
+  const label = (docs[0].group_label || 'documento').replace(/[^\w\-]+/g, '_');
+  triggerDocDownload(html, `${label}.doc`);
+  toast(`Word gerado com ${docs.length} página(s) ✓`, 'success');
+}
+
+function triggerDocDownload(html, filename) {
   const preamble = '﻿';
   const blob = new Blob([preamble + html], { type: 'application/msword;charset=utf-8' });
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
   a.href = url;
-  a.download = `${doc.stem || 'registro'}.doc`;
+  a.download = filename;
   a.click();
   URL.revokeObjectURL(url);
-  toast('Word gerado ✓', 'success');
+}
+
+function buildGroupWordHtml(docs) {
+  const first = docs[0];
+  const label = escapeHtml(first.group_label || 'Documento');
+  // Combina campos estruturados da PRIMEIRA página (registros costumam começar no início).
+  const firstResult = first.result || {};
+  const camposHtml = Object.entries(firstResult.campos_estruturados || {})
+    .map(([k, v]) => `<p style="margin:0 0 4pt 0;"><b>${escapeHtml(k)}:</b> ${escapeHtml(String(v))}</p>`)
+    .join('');
+
+  const paginasHtml = docs.map((d, idx) => {
+    const r = d.result || {};
+    const corpo = stripDoubtMarkup(renderBodyWithDoubts(r.html_corpo || '', d));
+    const pageHeader = docs.length > 1
+      ? `<p style="margin:18pt 0 6pt 0;font-size:10pt;color:#666;border-bottom:0.75pt solid #999;padding-bottom:3pt;">— Página ${idx + 1} de ${docs.length} (${escapeHtml(d.stem)}) —</p>`
+      : '';
+    const confront = (r.confrontantes && r.confrontantes.length) ? `
+      <p style="margin:10pt 0 4pt 0;"><b>Confrontantes:</b></p>
+      <ul>${r.confrontantes.map(c => `<li>${escapeHtml(c.nome || '?')}${c.posicao ? ` — <i>${escapeHtml(c.posicao)}</i>` : ''}</li>`).join('')}</ul>` : '';
+    const selos = r.selos_fiscais ? `
+      <p style="margin:10pt 0 4pt 0;"><b>Selos fiscais:</b> ${escapeHtml(r.selos_fiscais.descricao || JSON.stringify(r.selos_fiscais))}</p>` : '';
+    return `${pageHeader}<div class="corpo">${corpo}</div>${confront}${selos}`;
+  }).join('\n');
+
+  const aprovadores = [...new Set(docs.map(d => d.approved_by || 'desconhecido'))].join(', ');
+  const datasAprov = docs.map(d => d.approved_at || 0).filter(Boolean);
+  const ultimaAprov = datasAprov.length ? new Date(Math.max(...datasAprov)).toLocaleString('pt-BR') : '';
+
+  return `<html xmlns:o="urn:schemas-microsoft-com:office:office"
+      xmlns:w="urn:schemas-microsoft-com:office:word"
+      xmlns="http://www.w3.org/TR/REC-html40">
+<head><meta charset="UTF-8">
+<title>${label}</title>
+<!--[if gte mso 9]><xml>
+  <w:WordDocument><w:View>Print</w:View><w:Zoom>100</w:Zoom><w:DoNotOptimizeForBrowser/></w:WordDocument>
+</xml><![endif]-->
+<style>
+  @page { size: A4; margin: 2.5cm 2cm; }
+  body { font-family: 'Times New Roman', Georgia, serif; font-size: 12pt; line-height: 1.5; color: #000; }
+  h1 { font-size: 16pt; border-bottom: 1.5pt solid #000; padding-bottom: 4pt; margin: 0 0 12pt 0; }
+  .meta { background:#f4f4ee; border-left: 3pt solid #888; padding: 8pt 12pt; margin: 0 0 16pt 0; }
+  .corpo { text-align: justify; }
+  .corpo p { margin: 0 0 8pt 0; }
+  ul { margin: 4pt 0 8pt 18pt; padding: 0; }
+  .rodape { margin-top: 24pt; padding-top: 8pt; border-top: 1pt solid #999; font-size: 9pt; color: #555; }
+</style>
+</head>
+<body>
+  <h1>${label} <span style="font-size:11pt;color:#666;font-weight:normal;">(${docs.length} página${docs.length > 1 ? 's' : ''})</span></h1>
+  ${camposHtml ? `<div class="meta">${camposHtml}</div>` : ''}
+  ${paginasHtml}
+  <div class="rodape">
+    Documento composto por ${docs.length} página(s). Aprovado por <b>${escapeHtml(aprovadores)}</b>${ultimaAprov ? ` · última aprovação em ${ultimaAprov}` : ''}.
+  </div>
+</body></html>`;
 }
 
 const SHARED_CSS = `
@@ -2982,15 +3337,20 @@ function bindUI() {
   const fi = $('#file-input');
   dz.addEventListener('click', () => fi.click());
   fi.addEventListener('change', async e => {
-    for (const f of e.target.files) await enqueueFile(f);
+    await handleUploadedFiles(e.target.files);
     fi.value = '';
   });
   dz.addEventListener('dragover', e => { e.preventDefault(); dz.classList.add('dragover'); });
   dz.addEventListener('dragleave', () => dz.classList.remove('dragover'));
   dz.addEventListener('drop', async e => {
     e.preventDefault(); dz.classList.remove('dragover');
-    for (const f of e.dataTransfer.files) await enqueueFile(f);
+    await handleUploadedFiles(e.dataTransfer.files);
   });
+
+  // Banner de grupo aberto: botões
+  document.getElementById('ogb-add').onclick = () => fi.click();
+  document.getElementById('ogb-close').onclick = () => closePendingGroup();
+  updateOpenGroupBanner();
 
   // Export
   $('#export-zip').onclick = exportApprovedZip;
