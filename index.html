@@ -2410,6 +2410,11 @@ async function renderWork(all) {
         <span class="resolved-stats ${allResolved ? 'complete' : ''}">
           ${allResolved ? '✓ Pronto pra aprovar' : `Faltam ${totalDoubts - resolvedDoubts} de ${totalDoubts} dúvidas`}
         </span>
+        ${doc.status === 'approved' ? `
+          <button class="btn btn-secondary" id="download-word-btn" type="button" title="Baixar este documento em Word (.doc)">
+            ⬇ Baixar Word
+          </button>
+        ` : ''}
         <button class="btn btn-success" id="approve-btn" ${allResolved ? '' : 'disabled'} type="button">
           ${doc.status === 'approved' ? '✓ Aprovado' : 'Aprovar documento'}
         </button>
@@ -2425,6 +2430,8 @@ async function renderWork(all) {
     toast('Documento aprovado ✓', 'success');
     render();
   };
+  const downloadWordBtn = $('#download-word-btn');
+  if (downloadWordBtn) downloadWordBtn.onclick = () => downloadDocAsWord(doc);
   $('#reprocess').onclick = async () => {
     const fromCache = doc.result?._from_cache;
     const isFree = PRICING[Config.model]?.free_tier;
@@ -2710,6 +2717,90 @@ th{background:#eee}
   a.click();
   URL.revokeObjectURL(url);
   toast(`ZIP gerado com ${approved.length} documento(s)`, 'success');
+}
+
+/* =========================================================================
+   EXPORT (WORD .doc — single document)
+   Usa HTML com namespaces MSO. Word/LibreOffice/Pages abrem nativamente.
+========================================================================= */
+function buildWordHtml(d) {
+  const r = d.result || {};
+  const corpoFinal = renderBodyWithDoubts(r.html_corpo || '', d);
+  const corpoLimpo = stripDoubtMarkup(corpoFinal);
+
+  const numero = escapeHtml(r.numero_registro || '?');
+  const dataExt = escapeHtml(r.campos_estruturados?.data_extenso || '');
+  const camposHtml = Object.entries(r.campos_estruturados || {})
+    .map(([k, v]) => `<p style="margin:0 0 4pt 0;"><b>${escapeHtml(k)}:</b> ${escapeHtml(String(v))}</p>`)
+    .join('');
+
+  const confront = (r.confrontantes && r.confrontantes.length) ? `
+    <p style="margin-top:14pt;"><b>Confrontantes</b></p>
+    <ul>
+      ${r.confrontantes.map(c => `<li>${escapeHtml(c.nome || '?')}${c.posicao ? ` — <i>${escapeHtml(c.posicao)}</i>` : ''}</li>`).join('')}
+    </ul>` : '';
+
+  const selos = r.selos_fiscais ? `
+    <p style="margin-top:14pt;"><b>Selos fiscais</b></p>
+    <p>${escapeHtml(r.selos_fiscais.descricao || JSON.stringify(r.selos_fiscais))}</p>` : '';
+
+  const aprovador = escapeHtml(d.approved_by || 'desconhecido');
+  const aprovadoEm = new Date(d.approved_at || Date.now()).toLocaleString('pt-BR');
+  const score = Math.round((r.score_confianca || 0) * 100);
+  const totalIncert = (r.incertezas || []).length;
+  const resolvedCount = Object.keys(d.approvals || {}).length;
+
+  return `<html xmlns:o="urn:schemas-microsoft-com:office:office"
+      xmlns:w="urn:schemas-microsoft-com:office:word"
+      xmlns="http://www.w3.org/TR/REC-html40">
+<head><meta charset="UTF-8">
+<title>Registro ${numero}</title>
+<!--[if gte mso 9]><xml>
+  <w:WordDocument><w:View>Print</w:View><w:Zoom>100</w:Zoom><w:DoNotOptimizeForBrowser/></w:WordDocument>
+</xml><![endif]-->
+<style>
+  @page { size: A4; margin: 2.5cm 2cm; }
+  body { font-family: 'Times New Roman', Georgia, serif; font-size: 12pt; line-height: 1.5; color: #000; }
+  h1 { font-size: 16pt; border-bottom: 1.5pt solid #000; padding-bottom: 4pt; margin: 0 0 12pt 0; }
+  .meta { background:#f4f4ee; border-left: 3pt solid #888; padding: 8pt 12pt; margin: 0 0 16pt 0; }
+  .corpo { text-align: justify; text-indent: 0; }
+  .corpo p { margin: 0 0 8pt 0; }
+  ul { margin: 4pt 0 8pt 18pt; padding: 0; }
+  .rodape { margin-top: 24pt; padding-top: 8pt; border-top: 1pt solid #999; font-size: 9pt; color: #555; }
+</style>
+</head>
+<body>
+  <h1>Registro nº ${numero}${dataExt ? ` — ${dataExt}` : ''}</h1>
+  ${camposHtml ? `<div class="meta">${camposHtml}</div>` : ''}
+  <div class="corpo">${corpoLimpo}</div>
+  ${confront}
+  ${selos}
+  <div class="rodape">
+    Aprovado por <b>${aprovador}</b> em ${aprovadoEm}.<br>
+    Score automático: ${score}% · Dúvidas resolvidas: ${resolvedCount}/${totalIncert}
+  </div>
+</body></html>`;
+}
+
+function stripDoubtMarkup(html) {
+  return String(html || '').replace(/<span\b[^>]*class="[^"]*incerto[^"]*"[^>]*>([\s\S]*?)<\/span>/g, '$1');
+}
+
+function downloadDocAsWord(doc) {
+  if (doc.status !== 'approved') {
+    toast('Aprove o documento antes de baixar.', 'error');
+    return;
+  }
+  const html = buildWordHtml(doc);
+  const preamble = '﻿';
+  const blob = new Blob([preamble + html], { type: 'application/msword;charset=utf-8' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `${doc.stem || 'registro'}.doc`;
+  a.click();
+  URL.revokeObjectURL(url);
+  toast('Word gerado ✓', 'success');
 }
 
 const SHARED_CSS = `
