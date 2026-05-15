@@ -1094,7 +1094,7 @@
    STORAGE LAYER — IndexedDB. Encapsulado para troca futura por API remota.
 ========================================================================= */
 const DB_NAME = 'cartorio-revisao';
-const DB_VERSION = 2;
+const DB_VERSION = 3;
 
 function openDB() {
   return new Promise((resolve, reject) => {
@@ -1110,10 +1110,39 @@ function openDB() {
         // Evita refazer chamada quando mesma imagem entra de novo.
         db.createObjectStore('cache', { keyPath: 'hash' });
       }
+      if (!db.objectStoreNames.contains('prefs')) {
+        // Backup persistente das chaves de API + preferências (sobrevive a limpeza de localStorage).
+        db.createObjectStore('prefs', { keyPath: 'key' });
+      }
     };
     req.onsuccess = e => resolve(e.target.result);
     req.onerror = e => reject(e.target.error);
   });
+}
+
+async function prefGet(key) {
+  try {
+    const db = await openDB();
+    return await new Promise((resolve, reject) => {
+      const tx = db.transaction('prefs', 'readonly');
+      const req = tx.objectStore('prefs').get(key);
+      req.onsuccess = () => resolve(req.result ? req.result.value : null);
+      req.onerror = e => reject(e.target.error);
+    });
+  } catch (e) { return null; }
+}
+
+async function prefSet(key, value) {
+  try {
+    const db = await openDB();
+    return await new Promise((resolve, reject) => {
+      const tx = db.transaction('prefs', 'readwrite');
+      if (value === null || value === undefined || value === '') tx.objectStore('prefs').delete(key);
+      else tx.objectStore('prefs').put({ key, value });
+      tx.oncomplete = () => resolve();
+      tx.onerror = e => reject(e.target.error);
+    });
+  } catch (e) { /* IDB indisponivel — segue silencioso, localStorage ainda funciona */ }
 }
 
 async function cacheGet(hash) {
@@ -1189,22 +1218,53 @@ async function dbClear() {
 /* =========================================================================
    CONFIG (localStorage)
 ========================================================================= */
+// Helper: grava em localStorage E faz backup no IDB (prefs store).
+// Backup async, fire-and-forget — não bloqueia o setter.
+function _persistKey(lsKey, value) {
+  if (value) localStorage.setItem(lsKey, value);
+  else localStorage.removeItem(lsKey);
+  prefSet(lsKey, value || null);
+}
+
 const Config = {
   get apiKey() { return localStorage.getItem('anthropic_key') || ''; },
-  set apiKey(v) { v ? localStorage.setItem('anthropic_key', v) : localStorage.removeItem('anthropic_key'); },
+  set apiKey(v) { _persistKey('anthropic_key', v); },
   get openaiKey() { return localStorage.getItem('openai_key') || ''; },
-  set openaiKey(v) { v ? localStorage.setItem('openai_key', v) : localStorage.removeItem('openai_key'); },
+  set openaiKey(v) { _persistKey('openai_key', v); },
   get geminiKey() { return localStorage.getItem('gemini_key') || ''; },
-  set geminiKey(v) { v ? localStorage.setItem('gemini_key', v) : localStorage.removeItem('gemini_key'); },
+  set geminiKey(v) { _persistKey('gemini_key', v); },
   get openrouterKey() { return localStorage.getItem('openrouter_key') || ''; },
-  set openrouterKey(v) { v ? localStorage.setItem('openrouter_key', v) : localStorage.removeItem('openrouter_key'); },
+  set openrouterKey(v) { _persistKey('openrouter_key', v); },
   get model() { return localStorage.getItem('model') || 'gemini-2.5-flash-lite'; },
-  set model(v) { localStorage.setItem('model', v); },
+  set model(v) { localStorage.setItem('model', v); prefSet('model', v); },
   get doublePass() { return localStorage.getItem('double_pass') === '1'; },
-  set doublePass(v) { localStorage.setItem('double_pass', v ? '1' : '0'); },
+  set doublePass(v) { const s = v ? '1' : '0'; localStorage.setItem('double_pass', s); prefSet('double_pass', s); },
   get glossario() { return localStorage.getItem('glossario') || DEFAULT_GLOSSARIO; },
-  set glossario(v) { localStorage.setItem('glossario', v); },
+  set glossario(v) { localStorage.setItem('glossario', v); prefSet('glossario', v); },
 };
+
+// Restaura do IDB se o localStorage foi limpo (Safari ITP, "limpar ao fechar", etc.)
+// Roda uma vez antes de bindUI — toda chave faltante em localStorage tenta vir do IDB.
+async function restorePrefsFromIDB() {
+  const keys = ['anthropic_key','openai_key','gemini_key','openrouter_key','model','double_pass','glossario','reviewer_name'];
+  let restored = 0;
+  for (const k of keys) {
+    if (localStorage.getItem(k)) continue;
+    const v = await prefGet(k);
+    if (v) { localStorage.setItem(k, v); restored++; }
+  }
+  return restored;
+}
+
+// Pede pro navegador marcar este storage como persistente (resiste a auto-limpeza por pressão de espaço/ITP).
+async function requestPersistentStorage() {
+  try {
+    if (navigator.storage && navigator.storage.persist) {
+      const already = navigator.storage.persisted ? await navigator.storage.persisted() : false;
+      if (!already) await navigator.storage.persist();
+    }
+  } catch (e) { /* navegador antigo — segue */ }
+}
 
 function getProvider(model) {
   if (!model) return null;
@@ -2847,11 +2907,18 @@ function bindUI() {
     inp.value = Config[configProp];
     const save = () => {
       const v = inp.value.trim();
-      if (v === Config[configProp]) return;
+      const prev = Config[configProp];
+      if (v === prev) return;
+      // Guarda contra apagamento acidental: se o input ficou vazio mas existia chave,
+      // restaura o display e NÃO apaga do storage. Pra remover, usar o botão "limpar".
+      if (!v && prev) {
+        inp.value = prev;
+        return;
+      }
       Config[configProp] = v;
       refreshKeyStatus();
-      toast(Config[configProp] ? `Chave ${providerName} salva ✓` : `Chave ${providerName} removida`, 'success');
-      if (Config[configProp]) setTimeout(processNext, 100);
+      toast(`Chave ${providerName} salva ✓`, 'success');
+      setTimeout(processNext, 100);
     };
     inp.onblur = save;
     inp.onkeydown = (e) => {
@@ -2960,11 +3027,17 @@ async function resetZombieProcessing() {
   }
 }
 
-bindUI();
-resetZombieProcessing().then(() => {
+// Boot: tenta restaurar chaves do IDB (caso localStorage tenha sido limpo)
+// e pede storage persistente. Só depois bindUI lê do localStorage pra popular inputs.
+(async function boot() {
+  const restored = await restorePrefsFromIDB();
+  await requestPersistentStorage();
+  bindUI();
+  if (restored > 0) toast(`Restaurei ${restored} preferência(s) do backup local ✓`, 'success');
+  await resetZombieProcessing();
   render();
   setTimeout(processNext, 500);
-});
+})();
 </script>
 </body>
 </html>
